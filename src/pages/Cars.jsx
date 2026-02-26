@@ -39,6 +39,9 @@ const CAR_TYPES = [
   "Other",
 ];
 
+const PRICE_MIN = 0;
+const PRICE_MAX = 500000;
+
 function buildCarTitle(row) {
   if (!row) return "";
   const parts = [row.make, row.model, row.year].filter(Boolean);
@@ -550,16 +553,19 @@ export default function Cars() {
 
   // Filters
   const [q, setQ] = useState("");
-  const [supplierId, setSupplierId] = useState("");
   const [make, setMake] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
-  const [year, setYear] = useState("");
-  const [sortBy, setSortBy] = useState("newest"); // newest | oldest
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
-  const [suppliers, setSuppliers] = useState([]);
+  const [year, setYear] = useState("");
+  const [supplierId, setSupplierId] = useState(""); // admin only
+  const [suppliers, setSuppliers] = useState([]); // admin only
+
+  const [minRange, setMinRange] = useState(PRICE_MIN);
+  const [maxRange, setMaxRange] = useState(PRICE_MAX);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("view"); // view | create | edit
   const [activeRow, setActiveRow] = useState(null);
@@ -575,87 +581,76 @@ export default function Cars() {
     });
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [rows]);
-
   const yearOptions = useMemo(() => {
-    const current = new Date().getFullYear();
-    const years = [];
-    for (let y = current; y >= 1990; y--) years.push(y);
-    return years;
-  }, []);
-
-  const sliderMax = useMemo(() => {
-    const max = (rows || []).reduce((acc, r) => {
-      const v = Number(r?.asking_price || 0);
-      return Number.isFinite(v) && v > acc ? v : acc;
-    }, 0);
-
-    const base = Math.max(50000, max || 0);
-    // round up to a nice number
-    return Math.ceil(base / 5000) * 5000;
+    const s = new Set();
+    rows.forEach((r) => {
+      if (!r) return;
+      if (r.year != null) s.add(String(r.year));
+    });
+    return Array.from(s).sort((a, b) => Number(b) - Number(a));
   }, [rows]);
 
-  async function loadSuppliers() {
-    try {
-      // Admin only (RLS). Sales users won't be able to read suppliers table.
-      const { data, error: err } = await supabase
-        .from("suppliers")
-        .select("id, company")
-        .order("company", { ascending: true });
 
-      if (err) throw err;
-      setSuppliers((data || []).filter(Boolean));
-    } catch (e) {
-      // Don't block the page if suppliers fail to load
-      console.warn(e);
-      setSuppliers([]);
-    }
-  }
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      try {
+        const { data, error: e } = await supabase
+          .from("suppliers")
+          .select("id, company")
+          .order("company", { ascending: true });
+        if (e) throw e;
+        setSuppliers((data || []).filter(Boolean));
+      } catch (err) {
+        // If RLS blocks or table missing, ignore
+        console.warn(err);
+      }
+    })();
+  }, [isAdmin]);
 
-  async function loadCars(overrides = {}) {
+  async function loadCars() {
     setLoading(true);
     setError(null);
 
-    // Resolve filters (overrides first, then state)
-    const qVal = overrides.q ?? q;
-    const supplierIdVal = overrides.supplierId ?? supplierId;
-    const makeVal = overrides.make ?? make;
-    const typeVal = overrides.type ?? type;
-    const statusVal = overrides.status ?? status;
-    const yearVal = overrides.year ?? year;
-    const sortByVal = overrides.sortBy ?? sortBy;
-    const minPriceVal = overrides.minPrice ?? minPrice;
-    const maxPriceVal = overrides.maxPrice ?? maxPrice;
-
     try {
-      const selectFields =
-        "id, make, model, year, type, status, asking_price, mileage, description, vin, plate_number, stock_no, main_image_url, created_at" +
-        (isAdmin ? ", car_finance(supplier_id)" : "");
-
       let query = supabase
         .from("cars")
-        .select(selectFields)
-        .order("created_at", { ascending: sortByVal === "oldest" });
+        .select(
+          "id, make, model, year, type, status, asking_price, mileage, description, vin, main_image_url, created_at",
+        )
+        .order("created_at", { ascending: false });
 
-      const qq = safeText(qVal);
+      const qq = safeText(q);
       if (qq) {
         query = query.or(
-          `make.ilike.%${qq}%,model.ilike.%${qq}%,vin.ilike.%${qq}%,plate_number.ilike.%${qq}%,stock_no.ilike.%${qq}%`,
+          `make.ilike.%${qq}%,model.ilike.%${qq}%,vin.ilike.%${qq}%`,
         );
       }
 
-      if (makeVal) query = query.eq("make", makeVal);
-      if (typeVal) query = query.eq("type", typeVal);
-      if (statusVal) query = query.eq("status", statusVal);
+      if (make) query = query.eq("make", make);
+      if (type) query = query.eq("type", type);
+      if (status) query = query.eq("status", status);
 
-      const yN = toNumberOrNull(yearVal);
-      if (yN != null) query = query.eq("year", yN);
+      const y = toNumberOrNull(year);
+      if (y != null) query = query.eq("year", y);
 
-      if (isAdmin && supplierIdVal) {
-        query = query.eq("car_finance.supplier_id", supplierIdVal);
+      if (isAdmin && supplierId) {
+        const { data: finRows, error: finErr } = await supabase
+          .from("car_finance")
+          .select("car_id")
+          .eq("supplier_id", supplierId);
+        if (finErr) throw finErr;
+        const ids = (finRows || []).map((r) => r.car_id).filter(Boolean);
+        if (ids.length === 0) {
+          setRows([]);
+          setLoading(false);
+          return;
+        }
+        query = query.in("id", ids);
       }
 
-      const minN = toNumberOrNull(minPriceVal);
-      const maxN = toNumberOrNull(maxPriceVal);
+      const minN = toNumberOrNull(minPrice);
+      const maxN = toNumberOrNull(maxPrice);
       if (minN != null) query = query.gte("asking_price", minN);
       if (maxN != null) query = query.lte("asking_price", maxN);
 
@@ -670,40 +665,9 @@ export default function Cars() {
     }
   }
 
-  function resetFilters() {
-    const cleared = {
-      q: "",
-      supplierId: "",
-      make: "",
-      type: "",
-      status: "",
-      year: "",
-      sortBy: "newest",
-      minPrice: "",
-      maxPrice: "",
-    };
-
-    setQ("");
-    setSupplierId("");
-    setMake("");
-    setType("");
-    setStatus("");
-    setYear("");
-    setSortBy("newest");
-    setMinPrice("");
-    setMaxPrice("");
-
-    loadCars(cleared);
-  }
-
   useEffect(() => {
     loadCars();
   }, []);
-
-  useEffect(() => {
-    if (isAdmin) loadSuppliers();
-  }, [isAdmin]);
-
 
   function openCreate() {
     setActiveRow(null);
@@ -737,19 +701,78 @@ export default function Cars() {
     }
   }
 
+  function resetFilters() {
+    setQ("");
+    setMake("");
+    setType("");
+    setStatus("");
+    setYear("");
+    setSupplierId("");
+    setMinPrice("");
+    setMaxPrice("");
+    setMinRange(PRICE_MIN);
+    setMaxRange(PRICE_MAX);
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function onMinPriceInput(val) {
+    setMinPrice(val);
+    const n = toNumberOrNull(val);
+    if (n == null) {
+      setMinRange(PRICE_MIN);
+      return;
+    }
+    const next = clamp(n, PRICE_MIN, maxRange);
+    setMinRange(next);
+    if (next > maxRange) {
+      setMaxRange(next);
+      setMaxPrice(String(next));
+    }
+  }
+
+  function onMaxPriceInput(val) {
+    setMaxPrice(val);
+    const n = toNumberOrNull(val);
+    if (n == null) {
+      setMaxRange(PRICE_MAX);
+      return;
+    }
+    const next = clamp(n, minRange, PRICE_MAX);
+    setMaxRange(next);
+    if (next < minRange) {
+      setMinRange(next);
+      setMinPrice(String(next));
+    }
+  }
+
+  function onMinRangeChange(val) {
+    const n = clamp(val, PRICE_MIN, maxRange);
+    setMinRange(n);
+    setMinPrice(String(n));
+  }
+
+  function onMaxRangeChange(val) {
+    const n = clamp(val, minRange, PRICE_MAX);
+    setMaxRange(n);
+    setMaxPrice(String(n));
+  }
+
   return (
     <div className="container">
       <PageHeader
-        title="ניהול רכבים"
-        subtitle="מערכת פנימית לניהול המלאי של Wisecar. לא קשור ישירות לאתר הציבורי."
+        title="السيارات"
+        subtitle={
+          isAdmin
+            ? "أدمن: إضافة/تعديل/حذف + مالية داخلية مخفية عن المبيعات"
+            : "مبيعات: مشاهدة السيارات مع السعر المطلوب فقط"
+        }
         actions={
           isAdmin ? (
-            <button className="btn primary" onClick={openCreate} style={{ borderRadius: 999 }}>
-              <Plus size={18} /> + הוספת רכב חדש
-            </button>
-          ) : null
-        }
-      /> إضافة سيارة
+            <button className="btn primary" onClick={openCreate}>
+              <Plus size={18} /> إضافة سيارة
             </button>
           ) : null
         }
@@ -758,224 +781,142 @@ export default function Cars() {
       <ErrorBanner error={error} />
 
       <div className="card" style={{ marginBottom: 14, direction: "rtl" }}>
-        <div className="row space" style={{ marginBottom: 12, alignItems: "flex-end" }}>
-          <div className="row" style={{ gap: 10 }}>
-            <Filter size={18} />
-            <div className="h2">מסננים</div>
+        <div className="row space" style={{ alignItems: "flex-start", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <div className="h2">بحث وفلاتر</div>
+            <div className="muted">فلتر حسب الشركة/النوع/الحالة/السعر/السنة مثل شكل الصورة.</div>
           </div>
-          <button className="btn" onClick={() => loadCars()}>
-            רענון
-          </button>
+          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+            <button className="btn" onClick={resetFilters}>إعادة ضبط</button>
+            <button className="btn gold" onClick={loadCars}>
+              <CarIcon size={18} /> تطبيق
+            </button>
+          </div>
         </div>
 
-        {/** Inspired by the provided screenshot: labeled fields + hints + price range */} 
-        <div style={{ display: "grid", gap: 14 }}>
-          {/* Row 1 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: isAdmin
-                ? "1.8fr 1fr 1fr 1fr 1fr"
-                : "2.2fr 1fr 1fr 1fr",
-              gap: 12,
-              alignItems: "end",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div className="label">חיפוש חופשי</div>
-              <Control icon={Search}>
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="חיפוש לפי חברה / דגם / לוחית"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") loadCars();
-                  }}
-                />
-              </Control>
-              <div className="muted" style={{ fontSize: 12 }}>
-                חיפוש לפי: חברה / דגם / VIN / לוחית
-              </div>
-            </div>
-
-            {isAdmin ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div className="label">ספק</div>
-                <select
-                  className="input"
-                  value={supplierId}
-                  onChange={(e) => setSupplierId(e.target.value)}
-                >
-                  <option value="">כל הספקים</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.company}
-                    </option>
-                  ))}
-                </select>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  אפשר לבחור ספק אחד
-                </div>
-              </div>
-            ) : null}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div className="label">חברה</div>
-              <select className="input" value={make} onChange={(e) => setMake(e.target.value)}>
-                <option value="">כל החברות</option>
-                {makeOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-              <div className="muted" style={{ fontSize: 12 }}>
-                אפשר לבחור חברה אחת או יותר
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div className="label">סטטוס רכב</div>
-              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="">כל המצבים</option>
-                <option value="available">זמין</option>
-                <option value="reserved">שמורה</option>
-                <option value="sold">נמכר</option>
-              </select>
-              <div className="muted" style={{ fontSize: 12 }}>
-                אפשר לבחור סטטוס אחד או יותר
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div className="label">מיון לפי פרסום</div>
-              <select className="input" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="newest">החדש ביותר</option>
-                <option value="oldest">הישן ביותר</option>
-              </select>
-              <div className="muted" style={{ fontSize: 12 }}>
-                מיון לפי תאריך יצירה
-              </div>
-            </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: isAdmin ? "repeat(6, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))",
+            gap: 12,
+            alignItems: "end",
+          }}
+        >
+          <div style={{ gridColumn: isAdmin ? "span 2" : "span 2" }}>
+            <div className="label">بحث حر</div>
+            <Control icon={Search}>
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="بحث حسب: شركة / موديل / VIN"
+              />
+            </Control>
+            <div className="muted" style={{ fontSize: 12 }}>اكتب كلمات، ثم اضغط تطبيق.</div>
           </div>
 
-          {/* Row 2 */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 2fr auto",
-              gap: 12,
-              alignItems: "end",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div className="label">סוג רכב</div>
-              <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
-                <option value="">כל הסוגים</option>
-                {CAR_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <div className="muted" style={{ fontSize: 12 }}>
-                אפשר לבחור סוג אחד או יותר
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div className="label">שנת ייצור</div>
-              <select className="input" value={year} onChange={(e) => setYear(e.target.value)}>
-                <option value="">כל השנים</option>
-                {yearOptions.map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-              <div className="muted" style={{ fontSize: 12 }}>
-                אפשר לבחור כמה שנים
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <div className="label">טווח מחיר (₪)</div>
-
-              <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <input
-                  className="input"
-                  value={minPrice}
-                  onChange={(e) => setMinPrice(e.target.value)}
-                  placeholder="מ-"
-                  inputMode="numeric"
-                  style={{ maxWidth: 140 }}
-                />
-                <div className="muted" style={{ fontWeight: 900 }}>
-                  עד
-                </div>
-                <input
-                  className="input"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(e.target.value)}
-                  placeholder="עד"
-                  inputMode="numeric"
-                  style={{ maxWidth: 140 }}
-                />
-              </div>
-
-              {(() => {
-                const minV = Math.max(0, toNumberOrNull(minPrice) ?? 0);
-                const maxV = Math.max(0, toNumberOrNull(maxPrice) ?? sliderMax);
-                const safeMin = Math.min(minV, sliderMax);
-                const safeMax = Math.min(Math.max(maxV, safeMin), sliderMax);
-
-                return (
-                  <div style={{ position: "relative", height: 26 }}>
-                    <input
-                      type="range"
-                      min={0}
-                      max={sliderMax}
-                      step={500}
-                      value={safeMin}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        const curMax = toNumberOrNull(maxPrice) ?? sliderMax;
-                        setMinPrice(String(Math.min(v, curMax)));
-                      }}
-                      style={{ position: "absolute", inset: 0, width: "100%" }}
-                    />
-                    <input
-                      type="range"
-                      min={0}
-                      max={sliderMax}
-                      step={500}
-                      value={safeMax}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        const curMin = toNumberOrNull(minPrice) ?? 0;
-                        setMaxPrice(String(Math.max(v, curMin)));
-                      }}
-                      style={{ position: "absolute", inset: 0, width: "100%" }}
-                    />
-                  </div>
-                );
-              })()}
-
-              <div className="muted" style={{ fontSize: 12 }}>
-                גרור את הידיות כדי לעדכן את הערכים ידנית
-              </div>
-            </div>
-
-            <button className="btn" onClick={resetFilters} style={{ whiteSpace: "nowrap" }}>
-              איפוס מסננים
-            </button>
+          <div>
+            <div className="label">סטטוס רכב</div>
+            <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">كل الحالات</option>
+              <option value="available">متاح</option>
+              <option value="reserved">محجوز</option>
+              <option value="sold">مباع</option>
+            </select>
+            <div className="muted" style={{ fontSize: 12 }}>اختر حالة السيارة.</div>
           </div>
 
-          {/* Actions */}
-          <div className="row" style={{ justifyContent: "flex-start", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn gold" onClick={() => loadCars()}>
-              <CarIcon size={18} /> הפעל מסננים
-            </button>
+          <div>
+            <div className="label">חברה</div>
+            <select className="input" value={make} onChange={(e) => setMake(e.target.value)}>
+              <option value="">كل الشركات</option>
+              {makeOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <div className="muted" style={{ fontSize: 12 }}>ممكن تختار شركة معيّنة.</div>
+          </div>
+
+          <div>
+            <div className="label">סטטוס / סוג רכב</div>
+            <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="">كل الأنواع</option>
+              {CAR_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <div className="muted" style={{ fontSize: 12 }}>اختر نوع/تصنيف السيارة.</div>
+          </div>
+
+          <div>
+            <div className="label">שנת ייצור</div>
+            <select className="input" value={year} onChange={(e) => setYear(e.target.value)}>
+              <option value="">كل السنوات</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            <div className="muted" style={{ fontSize: 12 }}>اختيار سنة محددة.</div>
+          </div>
+
+          {isAdmin ? (
+            <div>
+              <div className="label">ספק</div>
+              <select className="input" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                <option value="">كل الموردين</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.company}
+                  </option>
+                ))}
+              </select>
+              <div className="muted" style={{ fontSize: 12 }}>فلترة حسب المورد (للأدمن).</div>
+            </div>
+          ) : null}
+
+          <div style={{ gridColumn: isAdmin ? "span 3" : "span 2" }}>
+            <div className="label">טווח מחיר (₪)</div>
+            <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                className="input ltrIso"
+                value={minPrice}
+                onChange={(e) => onMinPriceInput(e.target.value)}
+                placeholder="من"
+                inputMode="numeric"
+                style={{ maxWidth: 140 }}
+              />
+              <div className="muted" style={{ fontWeight: 900 }}>إلى</div>
+              <input
+                className="input ltrIso"
+                value={maxPrice}
+                onChange={(e) => onMaxPriceInput(e.target.value)}
+                placeholder="إلى"
+                inputMode="numeric"
+                style={{ maxWidth: 140 }}
+              />
+            </div>
+            <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+              <input
+                type="range"
+                min={PRICE_MIN}
+                max={PRICE_MAX}
+                value={minRange}
+                onChange={(e) => onMinRangeChange(Number(e.target.value))}
+              />
+              <input
+                type="range"
+                min={PRICE_MIN}
+                max={PRICE_MAX}
+                value={maxRange}
+                onChange={(e) => onMaxRangeChange(Number(e.target.value))}
+              />
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>حرّك السلايدر أو اكتب رقم، ثم اضغط تطبيق.</div>
           </div>
         </div>
       </div>
