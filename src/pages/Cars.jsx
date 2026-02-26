@@ -20,7 +20,13 @@ import EmptyState from "../components/EmptyState";
 import Badge from "../components/Badge";
 
 import { supabase } from "../supabaseClient";
-import { formatMoneyILS, safeText, toNumberOrNull, statusLabel, statusVariant } from "../utils/format";
+import {
+  formatMoneyILS,
+  safeText,
+  toNumberOrNull,
+  statusLabel,
+  statusVariant,
+} from "../utils/format";
 
 const CAR_TYPES = [
   "Sedan",
@@ -34,6 +40,7 @@ const CAR_TYPES = [
 ];
 
 function buildCarTitle(row) {
+  if (!row) return "";
   const parts = [row.make, row.model, row.year].filter(Boolean);
   return parts.join(" ");
 }
@@ -43,7 +50,9 @@ async function uploadMainImage({ carId, file }) {
   const safeExt = ext.length > 6 ? "jpg" : ext;
 
   const uid =
-    (typeof crypto !== "undefined" && crypto.randomUUID && crypto.randomUUID()) ||
+    (typeof crypto !== "undefined" &&
+      crypto.randomUUID &&
+      crypto.randomUUID()) ||
     `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   const path = `${carId}/${uid}.${safeExt}`;
@@ -86,7 +95,7 @@ function CarCard({ row, onOpen }) {
       <div className="car-card-image-wrapper">
         <img
           className="carCardImg"
-          src={row.main_image_url || "/brand-owl.png"}
+          src={row?.main_image_url || "/brand-owl.png"}
           alt={buildCarTitle(row)}
           loading="lazy"
           onError={(e) => {
@@ -95,21 +104,29 @@ function CarCard({ row, onOpen }) {
         />
       </div>
       <div className="carCardBody">
-        <div className="row space" style={{ gap: 10, alignItems: "flex-start" }}>
+        <div
+          className="row space"
+          style={{ gap: 10, alignItems: "flex-start" }}
+        >
           <div>
             <div className="carTitle">{buildCarTitle(row) || "-"}</div>
             <div className="muted" style={{ marginTop: 4 }}>
-              {row.type || "-"} • {row.mileage ? `${row.mileage.toLocaleString()} كم` : "-"}
+              {row?.type || "-"} •{" "}
+              {row?.mileage ? `${row.mileage.toLocaleString()} كم` : "-"}
             </div>
           </div>
 
-          <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+          <Badge variant={statusVariant(row?.status)}>
+            {statusLabel(row?.status)}
+          </Badge>
         </div>
 
         <div className="row space" style={{ alignItems: "center" }}>
-          <div className="price ltrIso">{formatMoneyILS(row.asking_price)}</div>
+          <div className="price ltrIso">
+            {formatMoneyILS(row?.asking_price)}
+          </div>
           <div className="muted" style={{ fontWeight: 900 }}>
-            {row.make || ""}
+            {row?.make || ""}
           </div>
         </div>
       </div>
@@ -177,7 +194,9 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
         return;
       }
 
-      setPurchasePrice(data?.purchase_price != null ? String(data.purchase_price) : "");
+      setPurchasePrice(
+        data?.purchase_price != null ? String(data.purchase_price) : "",
+      );
       setAdSpend(data?.ad_spend != null ? String(data.ad_spend) : "");
       setFuelCost(data?.fuel_cost != null ? String(data.fuel_cost) : "");
       setOtherCost(data?.other_cost != null ? String(data.other_cost) : "");
@@ -276,11 +295,7 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
   }
 
   const title =
-    mode === "view"
-      ? "تفاصيل السيارة"
-      : isEdit
-        ? "تعديل سيارة"
-        : "إضافة سيارة";
+    mode === "view" ? "تفاصيل السيارة" : isEdit ? "تعديل سيارة" : "إضافة سيارة";
 
   return (
     <Modal open={open} title={title} onClose={onClose}>
@@ -292,7 +307,10 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
             <div>
               <div className="h1">{buildCarTitle(initial) || "-"}</div>
               <div className="muted" style={{ marginTop: 6 }}>
-                {initial?.type || "-"} • {initial?.mileage ? `${initial.mileage.toLocaleString()} كم` : "-"}
+                {initial?.type || "-"} •{" "}
+                {initial?.mileage
+                  ? `${initial.mileage.toLocaleString()} كم`
+                  : "-"}
               </div>
             </div>
             <Badge variant={statusVariant(initial?.status)}>
@@ -302,13 +320,17 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
 
           <div className="subtleBox">
             <div className="label">السعر المطلوب</div>
-            <div className="price ltrIso">{formatMoneyILS(initial?.asking_price)}</div>
+            <div className="price ltrIso">
+              {formatMoneyILS(initial?.asking_price)}
+            </div>
           </div>
 
           {initial?.description ? (
             <div className="subtleBox">
               <div className="label">وصف</div>
-              <div style={{ fontWeight: 900, lineHeight: 1.8 }}>{initial.description}</div>
+              <div style={{ fontWeight: 900, lineHeight: 1.8 }}>
+                {initial.description}
+              </div>
             </div>
           ) : null}
 
@@ -323,20 +345,42 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
           <div className="grid">
             <div style={{ gridColumn: "span 4" }}>
               <div className="label">الشركة</div>
-              <input className="input" value={make} onChange={(e) => setMake(e.target.value)} placeholder="Toyota" required />
+              <input
+                className="input"
+                value={make}
+                onChange={(e) => setMake(e.target.value)}
+                placeholder="Toyota"
+                required
+              />
             </div>
             <div style={{ gridColumn: "span 4" }}>
               <div className="label">الموديل</div>
-              <input className="input" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Corolla" required />
+              <input
+                className="input"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="Corolla"
+                required
+              />
             </div>
             <div style={{ gridColumn: "span 4" }}>
               <div className="label">السنة</div>
-              <input className="input" value={year} onChange={(e) => setYear(e.target.value)} placeholder="2020" inputMode="numeric" />
+              <input
+                className="input"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                placeholder="2020"
+                inputMode="numeric"
+              />
             </div>
 
             <div style={{ gridColumn: "span 4" }}>
               <div className="label">النوع</div>
-              <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+              <select
+                className="input"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
                 <option value="">—</option>
                 {CAR_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -348,7 +392,11 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
 
             <div style={{ gridColumn: "span 4" }}>
               <div className="label">الحالة</div>
-              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select
+                className="input"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
                 <option value="available">متاح</option>
                 <option value="reserved">محجوز</option>
                 <option value="sold">مباع</option>
@@ -357,22 +405,46 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
 
             <div style={{ gridColumn: "span 4" }}>
               <div className="label">الممشى (كم)</div>
-              <input className="input" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="85000" inputMode="numeric" />
+              <input
+                className="input"
+                value={mileage}
+                onChange={(e) => setMileage(e.target.value)}
+                placeholder="85000"
+                inputMode="numeric"
+              />
             </div>
 
             <div style={{ gridColumn: "span 6" }}>
               <div className="label">السعر المطلوب (₪)</div>
-              <input className="input" value={askingPrice} onChange={(e) => setAskingPrice(e.target.value)} placeholder="65000" inputMode="numeric" required />
+              <input
+                className="input"
+                value={askingPrice}
+                onChange={(e) => setAskingPrice(e.target.value)}
+                placeholder="65000"
+                inputMode="numeric"
+                required
+              />
             </div>
 
             <div style={{ gridColumn: "span 6" }}>
               <div className="label">VIN (اختياري)</div>
-              <input className="input" value={vin} onChange={(e) => setVin(e.target.value)} placeholder="JTD..." />
+              <input
+                className="input"
+                value={vin}
+                onChange={(e) => setVin(e.target.value)}
+                placeholder="JTD..."
+              />
             </div>
 
             <div style={{ gridColumn: "span 12" }}>
               <div className="label">وصف</div>
-              <textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="تفاصيل سريعة عن السيارة..." />
+              <textarea
+                className="input"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="تفاصيل سريعة عن السيارة..."
+              />
             </div>
           </div>
 
@@ -410,25 +482,52 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
               <div className="grid">
                 <div style={{ gridColumn: "span 3" }}>
                   <div className="label">سعر الشراء</div>
-                  <input className="input" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} placeholder="" inputMode="numeric" />
+                  <input
+                    className="input"
+                    value={purchasePrice}
+                    onChange={(e) => setPurchasePrice(e.target.value)}
+                    placeholder=""
+                    inputMode="numeric"
+                  />
                 </div>
                 <div style={{ gridColumn: "span 3" }}>
                   <div className="label">إعلانات</div>
-                  <input className="input" value={adSpend} onChange={(e) => setAdSpend(e.target.value)} placeholder="" inputMode="numeric" />
+                  <input
+                    className="input"
+                    value={adSpend}
+                    onChange={(e) => setAdSpend(e.target.value)}
+                    placeholder=""
+                    inputMode="numeric"
+                  />
                 </div>
                 <div style={{ gridColumn: "span 3" }}>
                   <div className="label">بنزين</div>
-                  <input className="input" value={fuelCost} onChange={(e) => setFuelCost(e.target.value)} placeholder="" inputMode="numeric" />
+                  <input
+                    className="input"
+                    value={fuelCost}
+                    onChange={(e) => setFuelCost(e.target.value)}
+                    placeholder=""
+                    inputMode="numeric"
+                  />
                 </div>
                 <div style={{ gridColumn: "span 3" }}>
                   <div className="label">مصاريف أخرى</div>
-                  <input className="input" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} placeholder="" inputMode="numeric" />
+                  <input
+                    className="input"
+                    value={otherCost}
+                    onChange={(e) => setOtherCost(e.target.value)}
+                    placeholder=""
+                    inputMode="numeric"
+                  />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="row" style={{ justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <div
+            className="row"
+            style={{ justifyContent: "flex-end", flexWrap: "wrap" }}
+          >
             <button type="button" className="btn" onClick={onClose}>
               إلغاء
             </button>
@@ -466,6 +565,7 @@ export default function Cars() {
   const makeOptions = useMemo(() => {
     const s = new Set();
     rows.forEach((r) => {
+      if (!r) return;
       const m = safeText(r.make);
       if (m) s.add(m);
     });
@@ -503,7 +603,7 @@ export default function Cars() {
       const { data, error: err } = await query;
       if (err) throw err;
 
-      setRows(data || []);
+      setRows((data || []).filter(Boolean));
       setLoading(false);
     } catch (e) {
       setError(e);
@@ -587,7 +687,11 @@ export default function Cars() {
             />
           </Control>
 
-          <select className="input" value={make} onChange={(e) => setMake(e.target.value)}>
+          <select
+            className="input"
+            value={make}
+            onChange={(e) => setMake(e.target.value)}
+          >
             <option value="">كل الشركات</option>
             {makeOptions.map((m) => (
               <option key={m} value={m}>
@@ -596,7 +700,11 @@ export default function Cars() {
             ))}
           </select>
 
-          <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+          <select
+            className="input"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+          >
             <option value="">كل الأنواع</option>
             {CAR_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -605,7 +713,11 @@ export default function Cars() {
             ))}
           </select>
 
-          <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select
+            className="input"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
             <option value="">كل الحالات</option>
             <option value="available">متاح</option>
             <option value="reserved">محجوز</option>
@@ -641,18 +753,30 @@ export default function Cars() {
         <EmptyState
           icon={CarIcon}
           title="لا يوجد سيارات"
-          description={isAdmin ? "ابدأ بإضافة أول سيارة للمخزون." : "اطلب من الأدمن إضافة سيارات."}
+          description={
+            isAdmin
+              ? "ابدأ بإضافة أول سيارة للمخزون."
+              : "اطلب من الأدمن إضافة سيارات."
+          }
           actionLabel={isAdmin ? "إضافة سيارة" : undefined}
           onAction={isAdmin ? openCreate : undefined}
         />
       ) : (
         <div className="carsGrid">
-          {rows.map((row) => (
+          {rows.filter(Boolean).map((row) => (
             <div key={row.id} style={{ position: "relative" }}>
               <CarCard row={row} onOpen={() => openRow(row)} />
 
               {isAdmin ? (
-                <div style={{ position: "absolute", top: 10, left: 10, display: "flex", gap: 8 }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 10,
+                    left: 10,
+                    display: "flex",
+                    gap: 8,
+                  }}
+                >
                   <button
                     className="btn"
                     title="تعديل"
