@@ -39,6 +39,25 @@ const CAR_TYPES = [
   "Other",
 ];
 
+const MAKE_MODEL_CATALOG = {
+  "كيا": ["بيكانتو", "ريو", "سيراتو", "سبورتاج", "نيرو", "ستونيك", "سورينتو", "كارنفال"],
+  "هيونداي": ["i10", "i20", "أكسنت", "إلنترا", "توسان", "كونا", "سانتافي", "أيونيك"],
+  "تويوتا": ["كورولا", "ياريس", "كامري", "راف 4", "CH-R", "هايلكس", "لاند كروزر"],
+  "سكودا": ["أوكتافيا", "سوبرب", "كودياك", "كاميك", "كاروك", "فابيا"],
+  "فولكس فاجن": ["جولف", "بولو", "تيغوان", "باسات", "ت-روك"],
+  "مازدا": ["3", "6", "CX-3", "CX-5", "CX-30"],
+  "نيسان": ["ميكرا", "سنترا", "قشقاي", "إكس-تريل", "جوك"],
+  "ميتسوبيشي": ["أتراج", "لانسر", "ASX", "أوتلاندر", "تريتون"],
+  "سوزوكي": ["سويفت", "بالينو", "فيتارا", "سياز", "إرتيجا"],
+  "بيجو": ["208", "2008", "3008", "508"],
+  "رينو": ["كليو", "كابتور", "ميغان", "كوليوس"],
+  "مرسيدس": ["A-Class", "C-Class", "E-Class", "GLA", "GLC"],
+  "بي إم دبليو": ["1 Series", "3 Series", "5 Series", "X1", "X3"],
+  "أودي": ["A3", "A4", "A6", "Q3", "Q5"],
+};
+
+
+
 function toDateOrNull(v) {
   const s = safeText(v);
   return s ? s : null; // YYYY-MM-DD
@@ -143,7 +162,7 @@ function KeyValue({ k, v }) {
   );
 }
 
-function CarModal({ open, mode, isAdmin, initial, suppliers, onClose, onSaved, toast }) {
+function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClose, onSaved, toast }) {
   const isEdit = mode === "edit";
 
   const [saving, setSaving] = useState(false);
@@ -152,6 +171,8 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, onClose, onSaved, t
   // Base (cars)
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
+  const [makeIsCustom, setMakeIsCustom] = useState(false);
+  const [modelIsCustom, setModelIsCustom] = useState(false);
   const [year, setYear] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("available");
@@ -193,6 +214,30 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, onClose, onSaved, t
 
     setMake(initial?.make || "");
     setModel(initial?.model || "");
+
+    // تحديد إذا الشركة/الموديل خارج القوائم
+    const mk = safeText(initial?.make || "");
+    const md = safeText(initial?.model || "");
+
+    const listMakes = Array.from(
+      new Set([
+        ...Object.keys(MAKE_MODEL_CATALOG || {}),
+        ...Object.keys(makeModelMap || {}),
+      ]),
+    );
+
+    setMakeIsCustom(mk ? !listMakes.includes(mk) : false);
+
+    const listModels = mk
+      ? Array.from(
+          new Set([
+            ...((MAKE_MODEL_CATALOG && MAKE_MODEL_CATALOG[mk]) || []),
+            ...(((makeModelMap || {})[mk]) || []),
+          ]),
+        )
+      : [];
+
+    setModelIsCustom(md ? !listModels.includes(md) : false);
     setYear(initial?.year ? String(initial.year) : "");
     setType(initial?.type || "");
     setStatus(initial?.status || "available");
@@ -489,12 +534,129 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, onClose, onSaved, t
             <div className="grid">
               <div style={{ gridColumn: "span 4" }}>
                 <div className="label">الشركة</div>
-                <input className="input" value={make} onChange={(e) => setMake(e.target.value)} required />
+
+                {!makeIsCustom ? (
+                  <select
+                    className="input"
+                    value={make || ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__other__") {
+                        setMake("");
+                        setMakeIsCustom(true);
+                        setModel("");
+                        setModelIsCustom(true);
+                        return;
+                      }
+                      setMake(v);
+                      setMakeIsCustom(false);
+                      setModel("");
+                      setModelIsCustom(false);
+                    }}
+                    required
+                  >
+                    <option value="">—</option>
+                    {Array.from(
+                      new Set([
+                        ...Object.keys(MAKE_MODEL_CATALOG || {}),
+                        ...Object.keys(makeModelMap || {}),
+                      ]),
+                    )
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((mk) => (
+                        <option key={mk} value={mk}>
+                          {mk}
+                        </option>
+                      ))}
+                    <option value="__other__">أخرى...</option>
+                  </select>
+                ) : (
+                  <div className="row" style={{ gap: 8 }}>
+                    <input
+                      className="input"
+                      value={make}
+                      onChange={(e) => {
+                        setMake(e.target.value);
+                        setModel("");
+                      }}
+                      placeholder="اكتب الشركة"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setMakeIsCustom(false);
+                        setMake("");
+                        setModel("");
+                        setModelIsCustom(false);
+                      }}
+                    >
+                      قائمة
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
                 <div className="label">الموديل</div>
-                <input className="input" value={model} onChange={(e) => setModel(e.target.value)} required />
+
+                {!modelIsCustom ? (
+                  <select
+                    className="input"
+                    value={model || ""}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__other__") {
+                        setModel("");
+                        setModelIsCustom(true);
+                        return;
+                      }
+                      setModel(v);
+                      setModelIsCustom(false);
+                    }}
+                    required
+                    disabled={!make}
+                  >
+                    <option value="">—</option>
+                    {Array.from(
+                      new Set([
+                        ...((MAKE_MODEL_CATALOG && MAKE_MODEL_CATALOG[make]) || []),
+                        ...(((makeModelMap || {})[make]) || []),
+                      ]),
+                    )
+                      .filter(Boolean)
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((md) => (
+                        <option key={md} value={md}>
+                          {md}
+                        </option>
+                      ))}
+                    <option value="__other__">أخرى...</option>
+                  </select>
+                ) : (
+                  <div className="row" style={{ gap: 8 }}>
+                    <input
+                      className="input"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="اكتب الموديل"
+                      required
+                      disabled={!make && !makeIsCustom}
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setModelIsCustom(false);
+                        setModel("");
+                      }}
+                      disabled={!make}
+                    >
+                      قائمة
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
@@ -736,6 +898,24 @@ export default function Cars() {
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
+  const makeModelMap = useMemo(() => {
+    const tmp = {};
+    (rows || []).filter(Boolean).forEach((r) => {
+      const mk = safeText(r.make);
+      const md = safeText(r.model);
+      if (!mk || !md) return;
+      if (!tmp[mk]) tmp[mk] = new Set();
+      tmp[mk].add(md);
+    });
+    const out = {};
+    Object.keys(tmp).forEach((mk) => {
+      out[mk] = Array.from(tmp[mk]).sort((a, b) => a.localeCompare(b));
+    });
+    return out;
+  }, [rows]);
+
+
+
   async function loadSuppliers() {
     try {
       const { data, error: e } = await supabase
@@ -959,6 +1139,7 @@ export default function Cars() {
         isAdmin={isAdmin}
         initial={activeRow}
         suppliers={suppliers}
+        makeModelMap={makeModelMap}
         onClose={() => setModalOpen(false)}
         onSaved={loadCars}
         toast={toast}
