@@ -42,6 +42,19 @@ const CAR_TYPES = [
 const PRICE_MIN = 0;
 const PRICE_MAX = 500000;
 
+function toDateOrNull(v) {
+  const s = safeText(v);
+  return s ? s : null; // ISO string YYYY-MM-DD
+}
+
+function toBoolOrNull(v) {
+  if (v === "" || v == null) return null;
+  if (v === true || v === false) return v;
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return null;
+}
+
 function buildCarTitle(row) {
   if (!row) return "";
   const parts = [row.make, row.model, row.year].filter(Boolean);
@@ -137,7 +150,7 @@ function CarCard({ row, onOpen }) {
   );
 }
 
-function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
+function CarModal({ open, mode, isAdmin, initial, suppliers, onClose, onSaved, toast }) {
   const isEdit = mode === "edit";
 
   const [saving, setSaving] = useState(false);
@@ -153,11 +166,77 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
   const [description, setDescription] = useState("");
   const [vin, setVin] = useState("");
 
+  const [plateNumber, setPlateNumber] = useState("");
+  const [color, setColor] = useState("");
+  const [stockNo, setStockNo] = useState("");
+
+  // Extended details (car_details)
+  const [detailsLoaded, setDetailsLoaded] = useState(false);
+
+  // Registration / general
+  const [onRoadDate, setOnRoadDate] = useState("");
+  const [trimLevel, setTrimLevel] = useState("");
+  const [lastTestDate, setLastTestDate] = useState("");
+  const [testValidUntil, setTestValidUntil] = useState("");
+  const [ownershipType, setOwnershipType] = useState("");
+  const [chassisNo, setChassisNo] = useState("");
+  const [ministryCode, setMinistryCode] = useState("");
+  const [modelCode, setModelCode] = useState("");
+  const [registrationInstruction, setRegistrationInstruction] = useState("");
+  const [engineNumber, setEngineNumber] = useState("");
+  const [importerName, setImporterName] = useState("");
+  const [priceOnRoad, setPriceOnRoad] = useState("");
+  const [gasInstalled, setGasInstalled] = useState("");
+  const [colorChanged, setColorChanged] = useState("");
+  const [ownershipChanged, setOwnershipChanged] = useState("");
+
+  // Technical
+  const [engineModel, setEngineModel] = useState("");
+  const [fuelType, setFuelType] = useState("");
+  const [tireFront, setTireFront] = useState("");
+  const [tireRear, setTireRear] = useState("");
+  const [emissionGroup, setEmissionGroup] = useState("");
+  const [gearbox, setGearbox] = useState("");
+  const [bodyType, setBodyType] = useState("");
+  const [registrationGroup, setRegistrationGroup] = useState("");
+  const [engineCc, setEngineCc] = useState("");
+  const [horsepower, setHorsepower] = useState("");
+  const [euroStandard, setEuroStandard] = useState("");
+  const [driveType, setDriveType] = useState("");
+  const [driveTech, setDriveTech] = useState("");
+  const [electricWindowsCount, setElectricWindowsCount] = useState("");
+  const [sunroof, setSunroof] = useState("");
+  const [alloyWheels, setAlloyWheels] = useState("");
+  const [tirePressureSensors, setTirePressureSensors] = useState("");
+  const [reverseCamera, setReverseCamera] = useState("");
+  const [doorsCount, setDoorsCount] = useState("");
+  const [seatsCount, setSeatsCount] = useState("");
+  const [totalWeight, setTotalWeight] = useState("");
+  const [towNoBrakes, setTowNoBrakes] = useState("");
+  const [towWithBrakes, setTowWithBrakes] = useState("");
+
+  // Safety
+  const [airbagsCount, setAirbagsCount] = useState("");
+  const [abs, setAbs] = useState("");
+  const [stabilityControl, setStabilityControl] = useState("");
+  const [laneDepartureWarning, setLaneDepartureWarning] = useState("");
+  const [distanceMonitor, setDistanceMonitor] = useState("");
+  const [adaptiveCruise, setAdaptiveCruise] = useState("");
+  const [disabledTag, setDisabledTag] = useState("");
+
+  // Ownership history (JSON array)
+  const [ownershipHistory, setOwnershipHistory] = useState("");
+
+
   // Admin-only finance
   const [purchasePrice, setPurchasePrice] = useState("");
   const [adSpend, setAdSpend] = useState("");
   const [fuelCost, setFuelCost] = useState("");
   const [otherCost, setOtherCost] = useState("");
+
+  const [supplierId, setSupplierId] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
 
   const [imageFile, setImageFile] = useState(null);
   const [financeLoaded, setFinanceLoaded] = useState(false);
@@ -177,17 +256,77 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
     setDescription(initial?.description || "");
     setVin(initial?.vin || "");
 
+    setPlateNumber(initial?.plate_number || "");
+    setColor(initial?.color || "");
+    setStockNo(initial?.stock_no || "");
+
+    // reset extended details
+    setOnRoadDate("");
+    setTrimLevel("");
+    setLastTestDate("");
+    setTestValidUntil("");
+    setOwnershipType("");
+    setChassisNo("");
+    setMinistryCode("");
+    setModelCode("");
+    setRegistrationInstruction("");
+    setEngineNumber("");
+    setImporterName("");
+    setPriceOnRoad("");
+    setGasInstalled("");
+    setColorChanged("");
+    setOwnershipChanged("");
+
+    setEngineModel("");
+    setFuelType("");
+    setTireFront("");
+    setTireRear("");
+    setEmissionGroup("");
+    setGearbox("");
+    setBodyType("");
+    setRegistrationGroup("");
+    setEngineCc("");
+    setHorsepower("");
+    setEuroStandard("");
+    setDriveType("");
+    setDriveTech("");
+    setElectricWindowsCount("");
+    setSunroof("");
+    setAlloyWheels("");
+    setTirePressureSensors("");
+    setReverseCamera("");
+    setDoorsCount("");
+    setSeatsCount("");
+    setTotalWeight("");
+    setTowNoBrakes("");
+    setTowWithBrakes("");
+
+    setAirbagsCount("");
+    setAbs("");
+    setStabilityControl("");
+    setLaneDepartureWarning("");
+    setDistanceMonitor("");
+    setAdaptiveCruise("");
+    setDisabledTag("");
+    setOwnershipHistory("");
+
+    setDetailsLoaded(false);
+
     setPurchasePrice("");
     setAdSpend("");
     setFuelCost("");
     setOtherCost("");
     setFinanceLoaded(false);
 
+    setSupplierId("");
+    setPurchaseDate("");
+    setInternalNotes("");
+
     async function loadFinance() {
       if (!isAdmin || !initial?.id) return;
       const { data, error: finErr } = await supabase
         .from("car_finance")
-        .select("purchase_price, ad_spend, fuel_cost, other_cost")
+        .select("purchase_price, ad_spend, ads_cost, fuel_cost, other_cost, supplier_id, purchase_date, internal_notes")
         .eq("car_id", initial.id)
         .maybeSingle();
 
@@ -200,13 +339,87 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
       setPurchasePrice(
         data?.purchase_price != null ? String(data.purchase_price) : "",
       );
-      setAdSpend(data?.ad_spend != null ? String(data.ad_spend) : "");
+      const adVal = data?.ad_spend != null ? data.ad_spend : data?.ads_cost;
+      setAdSpend(adVal != null ? String(adVal) : "");
+      setSupplierId(data?.supplier_id || "");
+      setPurchaseDate(data?.purchase_date ? String(data.purchase_date) : "");
+      setInternalNotes(data?.internal_notes || "");
       setFuelCost(data?.fuel_cost != null ? String(data.fuel_cost) : "");
       setOtherCost(data?.other_cost != null ? String(data.other_cost) : "");
       setFinanceLoaded(true);
     }
 
+    async function loadDetails() {
+      if (!initial?.id) {
+        setDetailsLoaded(true);
+        return;
+      }
+      const { data: d, error: dErr } = await supabase
+        .from("car_details")
+        .select("*")
+        .eq("car_id", initial.id)
+        .maybeSingle();
+
+      if (dErr) {
+        console.warn(dErr);
+        setDetailsLoaded(true);
+        return;
+      }
+
+      setOnRoadDate(d?.on_road_date ? String(d.on_road_date) : "");
+      setTrimLevel(d?.trim_level || "");
+      setLastTestDate(d?.last_test_date ? String(d.last_test_date) : "");
+      setTestValidUntil(d?.test_valid_until ? String(d.test_valid_until) : "");
+      setOwnershipType(d?.ownership_type || "");
+      setChassisNo(d?.chassis_no || "");
+      setMinistryCode(d?.ministry_code || "");
+      setModelCode(d?.model_code || "");
+      setRegistrationInstruction(d?.registration_instruction || "");
+      setEngineNumber(d?.engine_number || "");
+      setImporterName(d?.importer_name || "");
+      setPriceOnRoad(d?.price_on_road != null ? String(d.price_on_road) : "");
+      setGasInstalled(d?.gas_installed == null ? "" : String(d.gas_installed));
+      setColorChanged(d?.color_changed == null ? "" : String(d.color_changed));
+      setOwnershipChanged(d?.ownership_changed == null ? "" : String(d.ownership_changed));
+
+      setEngineModel(d?.engine_model || "");
+      setFuelType(d?.fuel_type || "");
+      setTireFront(d?.tire_front || "");
+      setTireRear(d?.tire_rear || "");
+      setEmissionGroup(d?.emission_group != null ? String(d.emission_group) : "");
+      setGearbox(d?.gearbox || "");
+      setBodyType(d?.body_type || "");
+      setRegistrationGroup(d?.registration_group || "");
+      setEngineCc(d?.engine_cc != null ? String(d.engine_cc) : "");
+      setHorsepower(d?.horsepower != null ? String(d.horsepower) : "");
+      setEuroStandard(d?.euro_standard || "");
+      setDriveType(d?.drive_type || "");
+      setDriveTech(d?.drive_tech || "");
+      setElectricWindowsCount(d?.electric_windows_count != null ? String(d.electric_windows_count) : "");
+      setSunroof(d?.sunroof == null ? "" : String(d.sunroof));
+      setAlloyWheels(d?.alloy_wheels == null ? "" : String(d.alloy_wheels));
+      setTirePressureSensors(d?.tire_pressure_sensors == null ? "" : String(d.tire_pressure_sensors));
+      setReverseCamera(d?.reverse_camera == null ? "" : String(d.reverse_camera));
+      setDoorsCount(d?.doors_count != null ? String(d.doors_count) : "");
+      setSeatsCount(d?.seats_count != null ? String(d.seats_count) : "");
+      setTotalWeight(d?.total_weight != null ? String(d.total_weight) : "");
+      setTowNoBrakes(d?.tow_no_brakes != null ? String(d.tow_no_brakes) : "");
+      setTowWithBrakes(d?.tow_with_brakes != null ? String(d.tow_with_brakes) : "");
+
+      setAirbagsCount(d?.airbags_count != null ? String(d.airbags_count) : "");
+      setAbs(d?.abs == null ? "" : String(d.abs));
+      setStabilityControl(d?.stability_control == null ? "" : String(d.stability_control));
+      setLaneDepartureWarning(d?.lane_departure_warning == null ? "" : String(d.lane_departure_warning));
+      setDistanceMonitor(d?.distance_monitor == null ? "" : String(d.distance_monitor));
+      setAdaptiveCruise(d?.adaptive_cruise == null ? "" : String(d.adaptive_cruise));
+      setDisabledTag(d?.disabled_tag == null ? "" : String(d.disabled_tag));
+
+      setOwnershipHistory(d?.ownership_history ? JSON.stringify(d.ownership_history, null, 2) : "");
+      setDetailsLoaded(true);
+    }
+
     loadFinance();
+    loadDetails();
   }, [open, initial, isAdmin]);
 
   async function onSubmit(e) {
@@ -227,6 +440,9 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
         asking_price: toNumberOrNull(askingPrice) || 0,
         description: safeText(description) || null,
         vin: safeText(vin) || null,
+        plate_number: safeText(plateNumber) || null,
+        color: safeText(color) || null,
+        stock_no: safeText(stockNo) || null,
       };
 
       if (!payload.make || !payload.model) {
@@ -257,6 +473,10 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
       // Finance (admin)
       const finPayload = {
         car_id: carRow.id,
+        supplier_id: safeText(supplierId) || null,
+        purchase_date: toDateOrNull(purchaseDate),
+        internal_notes: safeText(internalNotes) || null,
+
         purchase_price: toNumberOrNull(purchasePrice),
         ad_spend: toNumberOrNull(adSpend),
         fuel_cost: toNumberOrNull(fuelCost),
@@ -264,6 +484,9 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
       };
 
       const anyFin =
+        finPayload.supplier_id != null ||
+        finPayload.purchase_date != null ||
+        (finPayload.internal_notes && finPayload.internal_notes.length > 0) ||
         finPayload.purchase_price != null ||
         finPayload.ad_spend != null ||
         finPayload.fuel_cost != null ||
@@ -274,6 +497,82 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
           .from("car_finance")
           .upsert(finPayload, { onConflict: "car_id" });
         if (finUpErr) throw finUpErr;
+      }
+
+      // Extended details (car_details)
+      let ownershipHistoryJson = null;
+      const oh = safeText(ownershipHistory);
+      if (oh) {
+        try {
+          ownershipHistoryJson = JSON.parse(oh);
+        } catch (err) {
+          throw new Error("تاريخ الملكيات: JSON غير صالح. صحّحه أو اتركه فارغًا.");
+        }
+      }
+
+      const detailsPayload = {
+        car_id: carRow.id,
+
+        on_road_date: toDateOrNull(onRoadDate),
+        trim_level: safeText(trimLevel) || null,
+        last_test_date: toDateOrNull(lastTestDate),
+        test_valid_until: toDateOrNull(testValidUntil),
+        ownership_type: safeText(ownershipType) || null,
+        chassis_no: safeText(chassisNo) || null,
+        ministry_code: safeText(ministryCode) || null,
+        model_code: safeText(modelCode) || null,
+        registration_instruction: safeText(registrationInstruction) || null,
+        engine_number: safeText(engineNumber) || null,
+        importer_name: safeText(importerName) || null,
+        price_on_road: toNumberOrNull(priceOnRoad),
+
+        gas_installed: toBoolOrNull(gasInstalled),
+        color_changed: toBoolOrNull(colorChanged),
+        ownership_changed: toBoolOrNull(ownershipChanged),
+
+        engine_model: safeText(engineModel) || null,
+        fuel_type: safeText(fuelType) || null,
+        tire_front: safeText(tireFront) || null,
+        tire_rear: safeText(tireRear) || null,
+        emission_group: toNumberOrNull(emissionGroup),
+        gearbox: safeText(gearbox) || null,
+        body_type: safeText(bodyType) || null,
+        registration_group: safeText(registrationGroup) || null,
+        engine_cc: toNumberOrNull(engineCc),
+        horsepower: toNumberOrNull(horsepower),
+        euro_standard: safeText(euroStandard) || null,
+        drive_type: safeText(driveType) || null,
+        drive_tech: safeText(driveTech) || null,
+
+        electric_windows_count: toNumberOrNull(electricWindowsCount),
+        sunroof: toBoolOrNull(sunroof),
+        alloy_wheels: toBoolOrNull(alloyWheels),
+        tire_pressure_sensors: toBoolOrNull(tirePressureSensors),
+        reverse_camera: toBoolOrNull(reverseCamera),
+        doors_count: toNumberOrNull(doorsCount),
+        seats_count: toNumberOrNull(seatsCount),
+        total_weight: toNumberOrNull(totalWeight),
+        tow_no_brakes: toNumberOrNull(towNoBrakes),
+        tow_with_brakes: toNumberOrNull(towWithBrakes),
+
+        airbags_count: toNumberOrNull(airbagsCount),
+        abs: toBoolOrNull(abs),
+        stability_control: toBoolOrNull(stabilityControl),
+        lane_departure_warning: toBoolOrNull(laneDepartureWarning),
+        distance_monitor: toBoolOrNull(distanceMonitor),
+        adaptive_cruise: toBoolOrNull(adaptiveCruise),
+
+        disabled_tag: toBoolOrNull(disabledTag),
+        ownership_history: ownershipHistoryJson,
+      };
+
+      // Upsert only if any detail is present
+      const anyDetails = Object.entries(detailsPayload).some(([k, v]) => k !== "car_id" && v != null && v !== "");
+      if (anyDetails) {
+        const { error: detErr } = await supabase
+          .from("car_details")
+          .upsert(detailsPayload, { onConflict: "car_id" });
+        if (detErr) throw detErr;
       }
 
       // Image upload (optional)
@@ -328,6 +627,17 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
             </div>
           </div>
 
+          <div className="subtleBox">
+            <div className="label">معلومات سريعة</div>
+            <div style={{ fontWeight: 900, lineHeight: 1.8 }}>
+              {initial?.plate_number ? `لوحة: ${initial.plate_number}` : ""}
+              {initial?.plate_number && (initial?.color || initial?.vin) ? " • " : ""}
+              {initial?.color ? `لون: ${initial.color}` : ""}
+              {(initial?.color && initial?.vin) ? " • " : ""}
+              {initial?.vin ? `VIN: ${initial.vin}` : ""}
+            </div>
+          </div>
+
           {initial?.description ? (
             <div className="subtleBox">
               <div className="label">وصف</div>
@@ -374,6 +684,36 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
                 onChange={(e) => setYear(e.target.value)}
                 placeholder="2020"
                 inputMode="numeric"
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 4" }}>
+              <div className="label">رقم السيارة (لوحة)</div>
+              <input
+                className="input ltrIso"
+                value={plateNumber}
+                onChange={(e) => setPlateNumber(e.target.value)}
+                placeholder="814-41-303"
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 4" }}>
+              <div className="label">اللون</div>
+              <input
+                className="input"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                placeholder="أسود / أبيض..."
+              />
+            </div>
+
+            <div style={{ gridColumn: "span 4" }}>
+              <div className="label">رقم مخزون (اختياري)</div>
+              <input
+                className="input"
+                value={stockNo}
+                onChange={(e) => setStockNo(e.target.value)}
+                placeholder="STK-001"
               />
             </div>
 
@@ -453,6 +793,320 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
 
           <div className="subtleBox">
             <div className="row space" style={{ marginBottom: 8 }}>
+              <div className="h2">تفاصيل الوزارة / الرخصة (اختياري)</div>
+              <div className="muted">حسب صورة “פרטי רכב”.</div>
+            </div>
+
+            {!detailsLoaded && initial?.id ? (
+              <div className="muted">جاري تحميل…</div>
+            ) : (
+              <div className="grid">
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">مועד עלייה לכביש (تاريخ نزول على الشارع)</div>
+                  <input className="input ltrIso" value={onRoadDate} onChange={(e)=>setOnRoadDate(e.target.value)} placeholder="YYYY-MM-DD" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">رמת גימור (فئة/تجهيز)</div>
+                  <input className="input" value={trimLevel} onChange={(e)=>setTrimLevel(e.target.value)} placeholder="STYLE..." />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">اسم المستورد</div>
+                  <input className="input" value={importerName} onChange={(e)=>setImporterName(e.target.value)} placeholder="..." />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">תאריך רישוי אחרון (آخر ترخيص)</div>
+                  <input className="input ltrIso" value={lastTestDate} onChange={(e)=>setLastTestDate(e.target.value)} placeholder="YYYY-MM-DD" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">רישוי בתוקף עד (ساري حتى)</div>
+                  <input className="input ltrIso" value={testValidUntil} onChange={(e)=>setTestValidUntil(e.target.value)} placeholder="YYYY-MM-DD" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">בעלות (نوع الملكية)</div>
+                  <input className="input" value={ownershipType} onChange={(e)=>setOwnershipType(e.target.value)} placeholder="خصوصي / لיסינג / סוחר..." />
+                </div>
+
+                <div style={{ gridColumn: "span 6" }}>
+                  <div className="label">מס שלדה (Chassis)</div>
+                  <input className="input ltrIso" value={chassisNo} onChange={(e)=>setChassisNo(e.target.value)} placeholder="VSSZZZ..." />
+                </div>
+
+                <div style={{ gridColumn: "span 6" }}>
+                  <div className="label">מספר מנוע</div>
+                  <input className="input ltrIso" value={engineNumber} onChange={(e)=>setEngineNumber(e.target.value)} placeholder="DLA..." />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">كود משרד התחבורה</div>
+                  <input className="input ltrIso" value={ministryCode} onChange={(e)=>setMinistryCode(e.target.value)} placeholder="778.593" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">كود דגם</div>
+                  <input className="input ltrIso" value={modelCode} onChange={(e)=>setModelCode(e.target.value)} placeholder="KJ12RZ" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">הוראת רישום</div>
+                  <input className="input ltrIso" value={registrationInstruction} onChange={(e)=>setRegistrationInstruction(e.target.value)} placeholder="211541" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">מחיר במועד עלייה לכביש (₪)</div>
+                  <input className="input ltrIso" value={priceOnRoad} onChange={(e)=>setPriceOnRoad(e.target.value)} inputMode="numeric" placeholder="114900" />
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">هل تم تركيب غاز (גפ&quot;מ)؟</div>
+                  <select className="input" value={gasInstalled} onChange={(e)=>setGasInstalled(e.target.value)}>
+                    <option value="">—</option>
+                    <option value="true">نعم</option>
+                    <option value="false">لا</option>
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">هل تم تغيير اللون؟</div>
+                  <select className="input" value={colorChanged} onChange={(e)=>setColorChanged(e.target.value)}>
+                    <option value="">—</option>
+                    <option value="true">نعم</option>
+                    <option value="false">لا</option>
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: "span 4" }}>
+                  <div className="label">هل كان تغيير ملكية؟</div>
+                  <select className="input" value={ownershipChanged} onChange={(e)=>setOwnershipChanged(e.target.value)}>
+                    <option value="">—</option>
+                    <option value="true">نعم</option>
+                    <option value="false">لا</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="subtleBox">
+            <div className="row space" style={{ marginBottom: 8 }}>
+              <div className="h2">مواصفات تقنية (اختياري)</div>
+              <div className="muted">حسب صورة “פרטי מנוע”.</div>
+            </div>
+
+            <div className="grid">
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">דגם מנוע</div>
+                <input className="input" value={engineModel} onChange={(e)=>setEngineModel(e.target.value)} placeholder="DLA" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">סוג דלק</div>
+                <input className="input" value={fuelType} onChange={(e)=>setFuelType(e.target.value)} placeholder="بنزين" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">תיבת הילוכים</div>
+                <input className="input" value={gearbox} onChange={(e)=>setGearbox(e.target.value)} placeholder="اوتوماتيك" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">צמיג קדמי</div>
+                <input className="input ltrIso" value={tireFront} onChange={(e)=>setTireFront(e.target.value)} placeholder="185/65 R15" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">צמיג אחורי</div>
+                <input className="input ltrIso" value={tireRear} onChange={(e)=>setTireRear(e.target.value)} placeholder="185/65 R15" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">קבוצת זיהום</div>
+                <input className="input ltrIso" value={emissionGroup} onChange={(e)=>setEmissionGroup(e.target.value)} inputMode="numeric" placeholder="14" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">מרכב</div>
+                <input className="input" value={bodyType} onChange={(e)=>setBodyType(e.target.value)} placeholder="הצ'בק" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">קבוצת רישוי</div>
+                <input className="input ltrIso" value={registrationGroup} onChange={(e)=>setRegistrationGroup(e.target.value)} placeholder="2" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">נפח מנוע (cc)</div>
+                <input className="input ltrIso" value={engineCc} onChange={(e)=>setEngineCc(e.target.value)} inputMode="numeric" placeholder="999" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">כוח סוס</div>
+                <input className="input ltrIso" value={horsepower} onChange={(e)=>setHorsepower(e.target.value)} inputMode="numeric" placeholder="110" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">סוג תקינה</div>
+                <input className="input" value={euroStandard} onChange={(e)=>setEuroStandard(e.target.value)} placeholder="אירופאית" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">הנעה</div>
+                <input className="input" value={driveType} onChange={(e)=>setDriveType(e.target.value)} placeholder="4X2" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">טכנולוגיית הנעה</div>
+                <input className="input" value={driveTech} onChange={(e)=>setDriveTech(e.target.value)} placeholder="הנעה רגילה" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">عدد نوافذ كهرباء</div>
+                <input className="input ltrIso" value={electricWindowsCount} onChange={(e)=>setElectricWindowsCount(e.target.value)} inputMode="numeric" placeholder="4" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">عدد الأبواب</div>
+                <input className="input ltrIso" value={doorsCount} onChange={(e)=>setDoorsCount(e.target.value)} inputMode="numeric" placeholder="5" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">عدد المقاعد</div>
+                <input className="input ltrIso" value={seatsCount} onChange={(e)=>setSeatsCount(e.target.value)} inputMode="numeric" placeholder="5" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">الوزن الكلي</div>
+                <input className="input ltrIso" value={totalWeight} onChange={(e)=>setTotalWeight(e.target.value)} inputMode="numeric" placeholder="1635" />
+              </div>
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">سحب بدون فرامل</div>
+                <input className="input ltrIso" value={towNoBrakes} onChange={(e)=>setTowNoBrakes(e.target.value)} inputMode="numeric" placeholder="580" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">سحب مع فرامل</div>
+                <input className="input ltrIso" value={towWithBrakes} onChange={(e)=>setTowWithBrakes(e.target.value)} inputMode="numeric" placeholder="1100" />
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">فتحة سقف</div>
+                <select className="input" value={sunroof} onChange={(e)=>setSunroof(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">جنطات ألمنيوم</div>
+                <select className="input" value={alloyWheels} onChange={(e)=>setAlloyWheels(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">حساسات ضغط هوا</div>
+                <select className="input" value={tirePressureSensors} onChange={(e)=>setTirePressureSensors(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">كاميرا خلفية</div>
+                <select className="input" value={reverseCamera} onChange={(e)=>setReverseCamera(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="subtleBox">
+            <div className="row space" style={{ marginBottom: 8 }}>
+              <div className="h2">أنظمة أمان (اختياري)</div>
+              <div className="muted">حسب صورة “מערכות בטיחות”.</div>
+            </div>
+
+            <div className="grid">
+              <div style={{ gridColumn: "span 3" }}>
+                <div className="label">عدد الوسائد الهوائية</div>
+                <input className="input ltrIso" value={airbagsCount} onChange={(e)=>setAirbagsCount(e.target.value)} inputMode="numeric" placeholder="6" />
+              </div>
+
+              <div style={{ gridColumn: "span 3" }}>
+                <div className="label">ABS</div>
+                <select className="input" value={abs} onChange={(e)=>setAbs(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 3" }}>
+                <div className="label">بكرت ثبات / יציבות</div>
+                <select className="input" value={stabilityControl} onChange={(e)=>setStabilityControl(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 3" }}>
+                <div className="label">تحذير ستّية عن مسار</div>
+                <select className="input" value={laneDepartureWarning} onChange={(e)=>setLaneDepartureWarning(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">نظام مراقبة مسافة للأمام</div>
+                <select className="input" value={distanceMonitor} onChange={(e)=>setDistanceMonitor(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">كروز كنترول تكيّفي</div>
+                <select className="input" value={adaptiveCruise} onChange={(e)=>setAdaptiveCruise(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+
+              <div style={{ gridColumn: "span 4" }}>
+                <div className="label">תג נכה (بطاقة إعاقة)</div>
+                <select className="input" value={disabledTag} onChange={(e)=>setDisabledTag(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="true">نعم</option>
+                  <option value="false">لا</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="subtleBox">
+            <div className="row space" style={{ marginBottom: 8 }}>
+              <div className="h2">تاريخ الملكيات (اختياري)</div>
+              <div className="muted">JSON Array مثل: [{'{'}"from":"07/2024","to":"12/2025","ownerType":"ליסינג"{'}'}]</div>
+            </div>
+
+            <textarea
+              className="input ltrIso"
+              rows={6}
+              value={ownershipHistory}
+              onChange={(e)=>setOwnershipHistory(e.target.value)}
+              placeholder={`[
+  {"from":"07/2024","to":"12/2025","ownerType":"ליסינג"},
+  {"from":"12/2025","to":"02/2026","ownerType":"סוחר"}
+]`}
+            />
+          </div>
+
+          <div className="subtleBox">
+            <div className="row space" style={{ marginBottom: 8 }}>
               <div className="h2">صورة السيارة</div>
               <div className="muted">اختياري</div>
             </div>
@@ -483,8 +1137,23 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
               <div className="muted">جاري تحميل…</div>
             ) : (
               <div className="grid">
+                <div style={{ gridColumn: "span 6" }}>
+                  <div className="label">المورد</div>
+                  <select className="input" value={supplierId} onChange={(e)=>setSupplierId(e.target.value)}>
+                    <option value="">—</option>
+                    {(suppliers || []).map((s) => (
+                      <option key={s.id} value={s.id}>{s.company}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: "span 6" }}>
+                  <div className="label">تاريخ الشراء (اختياري)</div>
+                  <input className="input ltrIso" value={purchaseDate} onChange={(e)=>setPurchaseDate(e.target.value)} placeholder="YYYY-MM-DD" />
+                </div>
+
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">سعر الشراء</div>
+                  <div className="label">سعر الشراء (سعر السيارة الأصلي)</div>
                   <input
                     className="input"
                     value={purchasePrice}
@@ -521,6 +1190,17 @@ function CarModal({ open, mode, isAdmin, initial, onClose, onSaved, toast }) {
                     onChange={(e) => setOtherCost(e.target.value)}
                     placeholder=""
                     inputMode="numeric"
+                  />
+                </div>
+
+                <div style={{ gridColumn: "span 12" }}>
+                  <div className="label">ملاحظات داخلية (اختياري)</div>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={internalNotes}
+                    onChange={(e)=>setInternalNotes(e.target.value)}
+                    placeholder="مثال: تم فحص السيارة / ملاحظات على الشراء..."
                   />
                 </div>
               </div>
@@ -616,7 +1296,7 @@ export default function Cars() {
       let query = supabase
         .from("cars")
         .select(
-          "id, make, model, year, type, status, asking_price, mileage, description, vin, main_image_url, created_at",
+          "id, plate_number, color, stock_no, make, model, year, type, status, asking_price, mileage, description, vin, main_image_url, created_at",
         )
         .order("created_at", { ascending: false });
 
@@ -989,6 +1669,7 @@ export default function Cars() {
         mode={modalMode}
         isAdmin={isAdmin}
         initial={activeRow}
+        suppliers={suppliers}
         onClose={() => setModalOpen(false)}
         onSaved={loadCars}
         toast={toast}
