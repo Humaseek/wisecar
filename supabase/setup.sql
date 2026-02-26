@@ -1,116 +1,46 @@
--- Car Showroom Pro (Supabase) - Schema + RLS + RPC
--- ملاحظة: شغّل هذا الملف مرة واحدة داخل Supabase SQL Editor.
+-- =========================================================
+-- WISECAR / CAR SHOWROOM PRO
+-- Full Migration (Supabase / PostgreSQL)
+-- Run ONCE in Supabase -> SQL Editor
+-- =========================================================
+-- What you get:
+--  - Auth profiles (admin/sales)
+--  - Cars + images + internal finance (admin-only)
+--  - Customers (sales can insert only)
+--  - Suppliers (admin-only) + suppliers.company column (frontend expects it)
+--  - Sales (sales can insert + see own; admin sees all)
+--  - Views + RPC functions expected by frontend:
+--      public.sales_list_view
+--      public.sales_sum_total()
+--      public.sales_sum_this_month()
+--  - Storage bucket policies for car-images
+-- =========================================================
 
--- ============================
+begin;
+
+-- -------------------------
 -- Extensions
--- ============================
-create extension if not exists "pgcrypto";
+-- -------------------------
+create extension if not exists pgcrypto;
 
--- ============================
--- Helper functions (roles)
--- ============================
-create or replace function public.is_admin()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.profiles p
-    where p.id = auth.uid()
-      and p.role = 'admin'
-  );
-$$;
+-- -------------------------
+-- Enums
+-- -------------------------
+do $$ begin
+  create type public.user_role as enum ('admin','sales');
+exception when duplicate_object then null; end $$;
 
-create or replace function public.is_sales()
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.profiles p
-    where p.id = auth.uid()
-      and p.role = 'sales'
-  );
-$$;
+do $$ begin
+  create type public.car_status as enum ('available','reserved','sold');
+exception when duplicate_object then null; end $$;
 
--- ============================
--- Profiles
--- ============================
-create table if not exists public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  full_name text not null default '',
-  role text not null default 'sales' check (role in ('admin','sales')),
-  created_at timestamptz not null default now()
-);
+do $$ begin
+  create type public.payment_method as enum ('cash','bank_transfer','credit_card','check','other');
+exception when duplicate_object then null; end $$;
 
-alter table public.profiles enable row level security;
-
--- اقرأ ملفك أو (الأدمن) يقرأ الجميع
-drop policy if exists "profiles_select_own_or_admin" on public.profiles;
-create policy "profiles_select_own_or_admin"
-on public.profiles
-for select
-to authenticated
-using (auth.uid() = id or public.is_admin());
-
--- تعديل ملف profiles للأدمن فقط (تغيير role)
-drop policy if exists "profiles_update_admin" on public.profiles;
-create policy "profiles_update_admin"
-on public.profiles
-for update
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
--- منع حذف/إدخال يدوي (الإدخال يتم عبر Trigger)
-drop policy if exists "profiles_insert_none" on public.profiles;
-create policy "profiles_insert_none"
-on public.profiles
-for insert
-to authenticated
-with check (false);
-
-drop policy if exists "profiles_delete_admin" on public.profiles;
-create policy "profiles_delete_admin"
-on public.profiles
-for delete
-to authenticated
-using (public.is_admin());
-
--- Trigger: إنشاء profile تلقائيًا عند تسجيل مستخدم جديد
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.profiles (id, full_name, role)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1), ''),
-    'sales'
-  )
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-
--- (قد يكون موجود مسبقًا)
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-after insert on auth.users
-for each row execute procedure public.handle_new_user();
-
--- ============================
--- Common updated_at trigger
--- ============================
+-- -------------------------
+-- Common trigger: updated_at
+-- -------------------------
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -121,461 +51,622 @@ begin
 end;
 $$;
 
--- ============================
--- Cars
--- ============================
-create table if not exists public.cars (
-  id uuid primary key default gen_random_uuid(),
-  make text not null,
-  model text not null,
-  year int,
-  type text,
-  status text not null default 'available' check (status in ('available','reserved','sold')),
-  mileage int,
-  asking_price numeric(12,2) not null default 0,
-  description text,
-  vin text,
-  main_image_url text,
-  created_by uuid references public.profiles(id) default auth.uid(),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.cars enable row level security;
-
-drop trigger if exists set_cars_updated_at on public.cars;
-create trigger set_cars_updated_at
-before update on public.cars
-for each row execute procedure public.set_updated_at();
-
--- Select: كل المستخدمين المسجلين
-drop policy if exists "cars_select_all" on public.cars;
-create policy "cars_select_all"
-on public.cars
-for select
-to authenticated
-using (true);
-
--- Admin CRUD
-drop policy if exists "cars_insert_admin" on public.cars;
-create policy "cars_insert_admin"
-on public.cars
-for insert
-to authenticated
-with check (public.is_admin());
-
-drop policy if exists "cars_update_admin" on public.cars;
-create policy "cars_update_admin"
-on public.cars
-for update
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
-drop policy if exists "cars_delete_admin" on public.cars;
-create policy "cars_delete_admin"
-on public.cars
-for delete
-to authenticated
-using (public.is_admin());
-
--- ============================
--- Car Finance (مخفي عن المبيعات)
--- ============================
-create table if not exists public.car_finance (
-  car_id uuid primary key references public.cars(id) on delete cascade,
-  purchase_price numeric(12,2),
-  ad_spend numeric(12,2),
-  fuel_cost numeric(12,2),
-  other_cost numeric(12,2),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  created_by uuid references public.profiles(id) default auth.uid()
-);
-
-alter table public.car_finance enable row level security;
-
-drop trigger if exists set_car_finance_updated_at on public.car_finance;
-create trigger set_car_finance_updated_at
-before update on public.car_finance
-for each row execute procedure public.set_updated_at();
-
--- Admin فقط
-drop policy if exists "car_finance_admin_all" on public.car_finance;
-create policy "car_finance_admin_all"
-on public.car_finance
-for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
--- ============================
--- Car Images
--- ============================
-create table if not exists public.car_images (
-  id uuid primary key default gen_random_uuid(),
-  car_id uuid not null references public.cars(id) on delete cascade,
-  path text not null,
-  public_url text,
-  created_at timestamptz not null default now(),
-  created_by uuid references public.profiles(id) default auth.uid()
-);
-
-alter table public.car_images enable row level security;
-
--- الجميع يقرأ الصور
-drop policy if exists "car_images_select_all" on public.car_images;
-create policy "car_images_select_all"
-on public.car_images
-for select
-to authenticated
-using (true);
-
--- Admin فقط يضيف/يحذف
-drop policy if exists "car_images_insert_admin" on public.car_images;
-create policy "car_images_insert_admin"
-on public.car_images
-for insert
-to authenticated
-with check (public.is_admin());
-
-drop policy if exists "car_images_delete_admin" on public.car_images;
-create policy "car_images_delete_admin"
-on public.car_images
-for delete
-to authenticated
-using (public.is_admin());
-
-drop policy if exists "car_images_update_admin" on public.car_images;
-create policy "car_images_update_admin"
-on public.car_images
-for update
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
--- ============================
--- Customers
--- ============================
-create table if not exists public.customers (
-  id uuid primary key default gen_random_uuid(),
-  full_name text not null,
+-- -------------------------
+-- PROFILES (auth.users -> role)
+-- -------------------------
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  role public.user_role not null default 'sales',
+  full_name text,
   phone text,
-  email text,
-  city text,
-  notes text,
-  created_by uuid references public.profiles(id) default auth.uid(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-alter table public.customers enable row level security;
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname='trg_profiles_updated_at') then
+    create trigger trg_profiles_updated_at
+    before update on public.profiles
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
 
-drop trigger if exists set_customers_updated_at on public.customers;
-create trigger set_customers_updated_at
-before update on public.customers
-for each row execute procedure public.set_updated_at();
-
--- Select: كل المستخدمين المسجلين
-drop policy if exists "customers_select_all" on public.customers;
-create policy "customers_select_all"
-on public.customers
-for select
-to authenticated
-using (true);
-
--- Insert: Admin أو Sales (B)
-drop policy if exists "customers_insert_admin_or_sales" on public.customers;
-create policy "customers_insert_admin_or_sales"
-on public.customers
-for insert
-to authenticated
-with check (
-  public.is_admin()
-  or (public.is_sales() and created_by = auth.uid())
-);
-
--- Update/Delete: Admin فقط
-drop policy if exists "customers_update_admin" on public.customers;
-create policy "customers_update_admin"
-on public.customers
-for update
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
-drop policy if exists "customers_delete_admin" on public.customers;
-create policy "customers_delete_admin"
-on public.customers
-for delete
-to authenticated
-using (public.is_admin());
-
--- ============================
--- Suppliers (Admin فقط)
--- ============================
-create table if not exists public.suppliers (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  company text,
-  phone text,
-  email text,
-  notes text,
-  created_by uuid references public.profiles(id) default auth.uid(),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-alter table public.suppliers enable row level security;
-
-drop trigger if exists set_suppliers_updated_at on public.suppliers;
-create trigger set_suppliers_updated_at
-before update on public.suppliers
-for each row execute procedure public.set_updated_at();
-
--- Select: Admin فقط
-drop policy if exists "suppliers_select_admin" on public.suppliers;
-create policy "suppliers_select_admin"
-on public.suppliers
-for select
-to authenticated
-using (public.is_admin());
-
--- CRUD: Admin فقط
-drop policy if exists "suppliers_admin_all" on public.suppliers;
-create policy "suppliers_admin_all"
-on public.suppliers
-for all
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
--- ============================
--- Sales
--- ============================
-create table if not exists public.sales (
-  id uuid primary key default gen_random_uuid(),
-  car_id uuid not null references public.cars(id) on delete restrict,
-  customer_id uuid not null references public.customers(id) on delete restrict,
-  sold_price numeric(12,2) not null,
-  payment_method text,
-  sold_at timestamptz not null default now(),
-  notes text,
-  salesperson_id uuid not null references public.profiles(id) default auth.uid(),
-  created_at timestamptz not null default now()
-);
-
-alter table public.sales enable row level security;
-
--- Select: Admin يشوف الكل، Sales يشوف مبيعاته فقط
-drop policy if exists "sales_select_admin_or_own" on public.sales;
-create policy "sales_select_admin_or_own"
-on public.sales
-for select
-to authenticated
-using (public.is_admin() or salesperson_id = auth.uid());
-
--- Insert:
--- A) موظف المبيعات لا يختار salesperson_id (يتسجل تلقائيًا كـ auth.uid())
---    ونفرض ذلك عبر policy.
---    ونمنع البيع لسيارة status='sold'.
-drop policy if exists "sales_insert_admin" on public.sales;
-create policy "sales_insert_admin"
-on public.sales
-for insert
-to authenticated
-with check (public.is_admin());
-
-drop policy if exists "sales_insert_sales_own" on public.sales;
-create policy "sales_insert_sales_own"
-on public.sales
-for insert
-to authenticated
-with check (
-  public.is_sales()
-  and salesperson_id = auth.uid()
-  and exists (select 1 from public.cars c where c.id = car_id and c.status <> 'sold')
-);
-
--- Update/Delete: Admin فقط
-drop policy if exists "sales_update_admin" on public.sales;
-create policy "sales_update_admin"
-on public.sales
-for update
-to authenticated
-using (public.is_admin())
-with check (public.is_admin());
-
-drop policy if exists "sales_delete_admin" on public.sales;
-create policy "sales_delete_admin"
-on public.sales
-for delete
-to authenticated
-using (public.is_admin());
-
--- Trigger: تحديث حالة السيارة عند البيع/الحذف
-create or replace function public.sales_after_insert()
+-- Auto-create profile on signup
+create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-  update public.cars
-     set status = 'sold'
-   where id = new.car_id;
+  insert into public.profiles (id, role, full_name)
+  values (new.id, 'sales', coalesce(new.raw_user_meta_data->>'full_name', null))
+  on conflict (id) do nothing;
   return new;
 end;
 $$;
 
-create or replace function public.sales_after_delete()
+-- attach trigger on auth.users (safe recreate)
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
+-- Role helpers
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  );
+$$;
+
+create or replace function public.is_sales()
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'sales'
+  );
+$$;
+
+-- -------------------------
+-- SUPPLIERS (Admin only) - frontend expects suppliers.company
+-- -------------------------
+create table if not exists public.suppliers (
+  id uuid primary key default gen_random_uuid(),
+  company text not null,
+  name text,
+  phone text,
+  email text,
+  city text,
+  notes text,
+  created_by uuid not null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- If an older suppliers table exists without company, add it
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='suppliers' and column_name='company'
+  ) then
+    alter table public.suppliers add column company text;
+  end if;
+
+  -- If there is a "name" column and company is null, backfill
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='suppliers' and column_name='name'
+  ) then
+    update public.suppliers
+      set company = coalesce(company, name)
+    where company is null;
+  end if;
+
+  -- Make company NOT NULL if possible (only if no nulls remain)
+  if exists (
+    select 1 from public.suppliers where company is null
+  ) then
+    -- keep as nullable for now
+  else
+    begin
+      alter table public.suppliers alter column company set not null;
+    exception when others then null;
+    end;
+  end if;
+end $$;
+
+create index if not exists idx_suppliers_company on public.suppliers(company);
+
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname='trg_suppliers_updated_at') then
+    create trigger trg_suppliers_updated_at
+    before update on public.suppliers
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+-- -------------------------
+-- CARS (safe fields only)
+-- -------------------------
+create table if not exists public.cars (
+  id uuid primary key default gen_random_uuid(),
+  stock_no text unique,
+  plate_number text,
+  vin text,
+  make text not null,
+  model text not null,
+  car_type text not null,
+  year int,
+  color text,
+  mileage int,
+  status public.car_status not null default 'available',
+
+  asking_price numeric(12,2) not null default 0,
+  notes_public text,
+
+  sold_at timestamptz,
+  sold_sale_id uuid,
+
+  created_by uuid not null default auth.uid(),
+  updated_by uuid not null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_cars_make on public.cars(make);
+create index if not exists idx_cars_type on public.cars(car_type);
+create index if not exists idx_cars_status on public.cars(status);
+create index if not exists idx_cars_asking_price on public.cars(asking_price);
+
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname='trg_cars_updated_at') then
+    create trigger trg_cars_updated_at
+    before update on public.cars
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+-- -------------------------
+-- CAR FINANCE (internal only - admin-only)
+-- -------------------------
+create table if not exists public.car_finance (
+  car_id uuid primary key references public.cars(id) on delete cascade,
+
+  purchase_price numeric(12,2) not null default 0,
+  ads_cost numeric(12,2) not null default 0,
+  fuel_cost numeric(12,2) not null default 0,
+  other_cost numeric(12,2) not null default 0,
+
+  purchase_date date,
+  internal_notes text,
+
+  supplier_id uuid references public.suppliers(id) on delete set null,
+
+  created_by uuid not null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname='trg_car_finance_updated_at') then
+    create trigger trg_car_finance_updated_at
+    before update on public.car_finance
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+-- -------------------------
+-- CUSTOMERS
+-- -------------------------
+create table if not exists public.customers (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  national_id text,
+  phone text,
+  email text,
+  city text,
+  notes text,
+
+  created_by uuid not null default auth.uid(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_customers_phone on public.customers(phone);
+create index if not exists idx_customers_name on public.customers(full_name);
+
+do $$ begin
+  if not exists (select 1 from pg_trigger where tgname='trg_customers_updated_at') then
+    create trigger trg_customers_updated_at
+    before update on public.customers
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+-- -------------------------
+-- CAR IMAGES (metadata; actual files in Storage bucket car-images)
+-- -------------------------
+create table if not exists public.car_images (
+  id uuid primary key default gen_random_uuid(),
+  car_id uuid not null references public.cars(id) on delete cascade,
+  storage_path text not null,     -- e.g. cars/<car_id>/<file>.jpg
+  is_primary boolean not null default false,
+  sort_order int not null default 0,
+  created_by uuid not null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_car_images_car on public.car_images(car_id);
+create index if not exists idx_car_images_primary on public.car_images(car_id, is_primary);
+
+-- -------------------------
+-- SALES
+--  - (A) salesperson chosen automatically: created_by = auth.uid()
+--  - one car can be sold once
+-- -------------------------
+create table if not exists public.sales (
+  id uuid primary key default gen_random_uuid(),
+  car_id uuid not null references public.cars(id) on delete restrict,
+  customer_id uuid not null references public.customers(id) on delete restrict,
+
+  sold_price numeric(12,2) not null,
+  payment_method public.payment_method not null default 'other',
+  sale_date date not null default current_date,
+  notes text,
+
+  created_by uuid not null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_sales_car_id on public.sales(car_id);
+create index if not exists idx_sales_created_by on public.sales(created_by);
+create index if not exists idx_sales_sale_date on public.sales(sale_date);
+
+-- After insert sale: mark car sold
+create or replace function public.mark_car_sold()
 returns trigger
 language plpgsql
-security definer
-set search_path = public
 as $$
 begin
-  -- إذا ما في مبيعات أخرى لنفس السيارة، رجّعها متاحة
-  if not exists (select 1 from public.sales s where s.car_id = old.car_id) then
-    update public.cars
-       set status = 'available'
-     where id = old.car_id
-       and status = 'sold';
-  end if;
+  update public.cars
+  set status = 'sold',
+      sold_at = now(),
+      sold_sale_id = new.id,
+      updated_by = auth.uid()
+  where id = new.car_id;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_mark_car_sold on public.sales;
+create trigger trg_mark_car_sold
+after insert on public.sales
+for each row execute function public.mark_car_sold();
+
+-- After delete sale (admin only): revert car if this sale was the sold_sale_id
+create or replace function public.unmark_car_sold()
+returns trigger
+language plpgsql
+as $$
+begin
+  update public.cars
+  set status = 'available',
+      sold_at = null,
+      sold_sale_id = null,
+      updated_by = auth.uid()
+  where id = old.car_id and sold_sale_id = old.id;
+
   return old;
 end;
 $$;
 
-drop trigger if exists trg_sales_after_insert on public.sales;
-create trigger trg_sales_after_insert
-after insert on public.sales
-for each row execute procedure public.sales_after_insert();
-
-drop trigger if exists trg_sales_after_delete on public.sales;
-create trigger trg_sales_after_delete
+drop trigger if exists trg_unmark_car_sold on public.sales;
+create trigger trg_unmark_car_sold
 after delete on public.sales
-for each row execute procedure public.sales_after_delete();
+for each row execute function public.unmark_car_sold();
 
--- ============================
--- View: sales_list_view (Dashboard + Sales page)
--- ============================
+-- -------------------------
+-- RLS ENABLE
+-- -------------------------
+alter table public.profiles enable row level security;
+alter table public.suppliers enable row level security;
+alter table public.cars enable row level security;
+alter table public.car_finance enable row level security;
+alter table public.customers enable row level security;
+alter table public.car_images enable row level security;
+alter table public.sales enable row level security;
+
+-- -------------------------
+-- RLS POLICIES
+-- -------------------------
+
+-- PROFILES
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own"
+on public.profiles for select
+to authenticated
+using (id = auth.uid());
+
+drop policy if exists "profiles_update_own_basic" on public.profiles;
+create policy "profiles_update_own_basic"
+on public.profiles for update
+to authenticated
+using (id = auth.uid())
+with check (id = auth.uid());
+
+drop policy if exists "profiles_select_admin_all" on public.profiles;
+create policy "profiles_select_admin_all"
+on public.profiles for select
+to authenticated
+using (public.is_admin());
+
+drop policy if exists "profiles_admin_update_all" on public.profiles;
+create policy "profiles_admin_update_all"
+on public.profiles for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- SUPPLIERS (Admin only)
+drop policy if exists "suppliers_admin_all" on public.suppliers;
+create policy "suppliers_admin_all"
+on public.suppliers for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- CARS
+drop policy if exists "cars_select_all_auth" on public.cars;
+create policy "cars_select_all_auth"
+on public.cars for select
+to authenticated
+using (true);
+
+drop policy if exists "cars_admin_insert" on public.cars;
+create policy "cars_admin_insert"
+on public.cars for insert
+to authenticated
+with check (public.is_admin() and created_by = auth.uid() and updated_by = auth.uid());
+
+drop policy if exists "cars_admin_update" on public.cars;
+create policy "cars_admin_update"
+on public.cars for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "cars_admin_delete" on public.cars;
+create policy "cars_admin_delete"
+on public.cars for delete
+to authenticated
+using (public.is_admin());
+
+-- CAR_FINANCE (Admin only - Sales cannot even SELECT)
+drop policy if exists "car_finance_admin_all" on public.car_finance;
+create policy "car_finance_admin_all"
+on public.car_finance for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+-- CUSTOMERS
+drop policy if exists "customers_select_all_auth" on public.customers;
+create policy "customers_select_all_auth"
+on public.customers for select
+to authenticated
+using (true);
+
+drop policy if exists "customers_insert_auth" on public.customers;
+create policy "customers_insert_auth"
+on public.customers for insert
+to authenticated
+with check (created_by = auth.uid());
+
+drop policy if exists "customers_admin_update" on public.customers;
+create policy "customers_admin_update"
+on public.customers for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "customers_admin_delete" on public.customers;
+create policy "customers_admin_delete"
+on public.customers for delete
+to authenticated
+using (public.is_admin());
+
+-- CAR_IMAGES
+drop policy if exists "car_images_select_all_auth" on public.car_images;
+create policy "car_images_select_all_auth"
+on public.car_images for select
+to authenticated
+using (true);
+
+drop policy if exists "car_images_admin_insert" on public.car_images;
+create policy "car_images_admin_insert"
+on public.car_images for insert
+to authenticated
+with check (public.is_admin() and created_by = auth.uid());
+
+drop policy if exists "car_images_admin_update" on public.car_images;
+create policy "car_images_admin_update"
+on public.car_images for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "car_images_admin_delete" on public.car_images;
+create policy "car_images_admin_delete"
+on public.car_images for delete
+to authenticated
+using (public.is_admin());
+
+-- SALES
+drop policy if exists "sales_admin_select_all" on public.sales;
+create policy "sales_admin_select_all"
+on public.sales for select
+to authenticated
+using (public.is_admin());
+
+drop policy if exists "sales_salesperson_select_own" on public.sales;
+create policy "sales_salesperson_select_own"
+on public.sales for select
+to authenticated
+using (public.is_sales() and created_by = auth.uid());
+
+drop policy if exists "sales_insert_admin_or_sales" on public.sales;
+create policy "sales_insert_admin_or_sales"
+on public.sales for insert
+to authenticated
+with check (
+  (public.is_admin() or public.is_sales())
+  and created_by = auth.uid()
+);
+
+drop policy if exists "sales_admin_update" on public.sales;
+create policy "sales_admin_update"
+on public.sales for update
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "sales_admin_delete" on public.sales;
+create policy "sales_admin_delete"
+on public.sales for delete
+to authenticated
+using (public.is_admin());
+
+-- -------------------------
+-- VIEW expected by frontend: sales_list_view
+-- (RLS still applies to underlying tables)
+-- -------------------------
 create or replace view public.sales_list_view as
 select
-  s.id,
-  s.sold_at,
-  s.sold_price,
-  s.payment_method,
-  s.notes,
-  s.salesperson_id,
-  (coalesce(c.make,'') || ' ' || coalesce(c.model,'') || case when c.year is null then '' else ' ' || c.year::text end) as car_title,
-  cu.full_name as customer_name,
-  p.full_name as sales_user_name
+  s.id                         as sale_id,
+  s.sale_date                  as sale_date,
+  s.sold_price                 as sold_price,
+  s.payment_method             as payment_method,
+  s.notes                      as sale_notes,
+  s.created_at                 as sale_created_at,
+
+  s.created_by                 as salesperson_id,
+  p.full_name                  as salesperson_name,
+
+  c.id                         as car_id,
+  c.make                       as car_make,
+  c.model                      as car_model,
+  c.year                       as car_year,
+  c.car_type                   as car_type,
+  c.status                     as car_status,
+  c.asking_price               as asking_price,
+
+  cu.id                        as customer_id,
+  cu.full_name                 as customer_name,
+  cu.phone                     as customer_phone,
+  cu.city                      as customer_city
 from public.sales s
 join public.cars c on c.id = s.car_id
 join public.customers cu on cu.id = s.customer_id
-left join public.profiles p on p.id = s.salesperson_id;
+left join public.profiles p on p.id = s.created_by;
 
--- اجعل الـ View تعمل بصلاحيات المستدعي (لتطبيق RLS بدقة)
-alter view public.sales_list_view set (security_invoker = true);
+grant select on public.sales_list_view to authenticated;
 
--- ============================
--- RPC: Dashboard sums
--- ============================
+-- -------------------------
+-- RPC functions expected by frontend
+-- -------------------------
+
 create or replace function public.sales_sum_total()
-returns numeric
+returns table(total numeric)
 language sql
 stable
 as $$
-  select coalesce(sum(sold_price), 0)
+  select coalesce(sum(sold_price), 0)::numeric as total
   from public.sales;
 $$;
 
-grant execute on function public.sales_sum_total() to authenticated;
-
 create or replace function public.sales_sum_this_month()
-returns numeric
+returns table(total numeric)
 language sql
 stable
 as $$
-  select coalesce(sum(sold_price), 0)
-  from public.sales
-  where sold_at >= date_trunc('month', now());
+  select coalesce(sum(s.sold_price), 0)::numeric as total
+  from public.sales s
+  where date_trunc('month', s.sale_date::timestamptz) = date_trunc('month', now());
 $$;
 
-grant execute on function public.sales_sum_this_month() to authenticated;
+-- Extra (useful for dashboard; safe to keep)
+create or replace function public.cars_count_by_status(target public.car_status)
+returns table(count bigint)
+language sql
+stable
+as $$
+  select count(*)::bigint
+  from public.cars
+  where status = target;
+$$;
 
--- Profit: Admin فقط
+-- Profit (Admin-only via check; returns 0 for non-admin to avoid breaking UI)
 create or replace function public.profit_sum_total()
-returns numeric
+returns table(total numeric)
 language plpgsql
 stable
 as $$
 declare
-  v numeric;
+  v_total numeric;
 begin
   if not public.is_admin() then
-    raise exception 'not allowed';
+    return query select 0::numeric;
+    return;
   end if;
 
-  with latest_sales as (
-    select distinct on (car_id)
-      car_id,
-      sold_price
-    from public.sales
-    order by car_id, sold_at desc
-  )
-  select
-    coalesce(sum(ls.sold_price), 0)
-    - coalesce(sum(
-      coalesce(f.purchase_price,0)
-      + coalesce(f.ad_spend,0)
-      + coalesce(f.fuel_cost,0)
-      + coalesce(f.other_cost,0)
-    ), 0)
-  into v
-  from latest_sales ls
-  left join public.car_finance f on f.car_id = ls.car_id;
+  select coalesce(sum(s.sold_price),0)
+         - coalesce(sum(cf.purchase_price + cf.ads_cost + cf.fuel_cost + cf.other_cost),0)
+    into v_total
+  from public.sales s
+  left join public.car_finance cf on cf.car_id = s.car_id;
 
-  return coalesce(v, 0);
+  return query select coalesce(v_total,0)::numeric;
 end;
 $$;
 
+grant execute on function public.sales_sum_total() to authenticated;
+grant execute on function public.sales_sum_this_month() to authenticated;
+grant execute on function public.cars_count_by_status(public.car_status) to authenticated;
 grant execute on function public.profit_sum_total() to authenticated;
 
--- ============================
--- Storage (اختياري): bucket + policies لصور السيارات
--- ============================
--- 1) أنشئ bucket باسم car-images (Public) من Storage UI أو اترك هذا الجزء يعمل.
-insert into storage.buckets (id, name, public)
-values ('car-images', 'car-images', true)
-on conflict (id) do nothing;
+-- -------------------------
+-- STORAGE (car-images bucket) + policies
+-- -------------------------
 
--- 2) Policies على storage.objects
--- ملاحظة: Supabase يفعّل RLS على storage.objects افتراضيًا.
+-- Create bucket if not exists (safe)
+do $$
+begin
+  insert into storage.buckets (id, name, public)
+  values ('car-images', 'car-images', true)
+  on conflict (id) do update set public = excluded.public;
+exception when others then
+  -- If Storage isn't enabled yet or permissions differ, ignore.
+  null;
+end $$;
 
-drop policy if exists "car_images_storage_read" on storage.objects;
-create policy "car_images_storage_read"
-on storage.objects
-for select
+-- Policies on storage.objects (drop/recreate to avoid duplicates)
+-- Note: storage.objects already has RLS enabled in Supabase.
+drop policy if exists "car_images_read_auth" on storage.objects;
+create policy "car_images_read_auth"
+on storage.objects for select
 to authenticated
 using (bucket_id = 'car-images');
 
--- Admin يرفع/يحدث/يحذف
-drop policy if exists "car_images_storage_admin_write" on storage.objects;
-create policy "car_images_storage_admin_write"
-on storage.objects
-for all
+drop policy if exists "car_images_insert_admin" on storage.objects;
+create policy "car_images_insert_admin"
+on storage.objects for insert
+to authenticated
+with check (bucket_id = 'car-images' and public.is_admin());
+
+drop policy if exists "car_images_update_admin" on storage.objects;
+create policy "car_images_update_admin"
+on storage.objects for update
 to authenticated
 using (bucket_id = 'car-images' and public.is_admin())
 with check (bucket_id = 'car-images' and public.is_admin());
 
--- ============================
--- Grants (عادة Supabase يغطيها، لكن نحطها كضمان)
--- ============================
-grant usage on schema public to authenticated;
+drop policy if exists "car_images_delete_admin" on storage.objects;
+create policy "car_images_delete_admin"
+on storage.objects for delete
+to authenticated
+using (bucket_id = 'car-images' and public.is_admin());
 
-grant select on public.sales_list_view to authenticated;
+commit;
 
--- ملاحظة: صلاحيات الجداول يتم ضبطها عبر RLS، لكن لازم grants أساسية
-grant select, insert, update, delete on all tables in schema public to authenticated;
-grant select, usage on all sequences in schema public to authenticated;
+-- Force PostgREST (Supabase API) to reload schema cache
+select pg_notify('pgrst', 'reload schema');
