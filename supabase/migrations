@@ -1,0 +1,8 @@
+# 1) داخل فولدر جديد لمشروعك
+supabase init
+
+# 2) تسجيل دخول للـ CLI
+supabase login
+
+# 3) ربط المشروع بالـ Supabase Project (حط project-ref تبعك)
+supabase link --project-ref udmvryzgsezusvlttwuf
