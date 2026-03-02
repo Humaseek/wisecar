@@ -442,6 +442,35 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
         if (finUpErr) throw finUpErr;
       }
 
+      // 3.5) حفظ الشركة + الموديل في القوائم (للأدمن)
+      try {
+        const mk = safeText(make);
+        const md = safeText(model);
+
+        if (mk && md) {
+          // upsert make
+          const { data: mkRow, error: mkErr } = await supabase
+            .from("car_makes")
+            .upsert({ name: mk }, { onConflict: "name" })
+            .select("id")
+            .single();
+          if (mkErr) throw mkErr;
+
+          const makeId = mkRow?.id;
+
+          if (makeId) {
+            const { error: mdErr } = await supabase
+              .from("car_models")
+              .upsert({ make_id: makeId, name: md }, { onConflict: "make_id,name" });
+            if (mdErr) throw mdErr;
+          }
+        }
+      } catch (e) {
+        // لا نوقف حفظ السيارة إذا فشل حفظ القائمة
+        console.warn(e);
+        toast?.("تم حفظ السيارة، لكن لم يتم حفظ الشركة/الموديل في قائمة الاختيار.", "warn");
+      }
+
       // 4) image upload
       if (imageFile) {
         try {
@@ -871,6 +900,7 @@ export default function Cars() {
 
   const [rows, setRows] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [makeModelsDb, setMakeModelsDb] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -900,19 +930,72 @@ export default function Cars() {
 
   const makeModelMap = useMemo(() => {
     const tmp = {};
-    (rows || []).filter(Boolean).forEach((r) => {
-      const mk = safeText(r.make);
-      const md = safeText(r.model);
-      if (!mk || !md) return;
-      if (!tmp[mk]) tmp[mk] = new Set();
-      tmp[mk].add(md);
+
+    function add(mk, md) {
+      const a = safeText(mk);
+      const b = safeText(md);
+      if (!a || !b) return;
+      if (!tmp[a]) tmp[a] = new Set();
+      tmp[a].add(b);
+    }
+
+    // 1) من قاعدة البيانات (الشركات والموديلات التي أضفتها)
+    Object.entries(makeModelsDb || {}).forEach(([mk, list]) => {
+      (list || []).forEach((md) => add(mk, md));
     });
+
+    // 2) من السيارات الموجودة
+    (rows || []).filter(Boolean).forEach((r) => add(r.make, r.model));
+
     const out = {};
     Object.keys(tmp).forEach((mk) => {
       out[mk] = Array.from(tmp[mk]).sort((a, b) => a.localeCompare(b));
     });
+
     return out;
-  }, [rows]);
+  }, [rows, makeModelsDb]);
+
+
+  async function loadMakeModels() {
+    try {
+      const { data: makes, error: e1 } = await supabase
+        .from("car_makes")
+        .select("id, name")
+        .order("name", { ascending: true });
+      if (e1) throw e1;
+
+      const { data: models, error: e2 } = await supabase
+        .from("car_models")
+        .select("make_id, name");
+      if (e2) throw e2;
+
+      const makeNameById = {};
+      (makes || []).filter(Boolean).forEach((m) => {
+        if (m?.id && m?.name) makeNameById[m.id] = m.name;
+      });
+
+      const map = {};
+      (models || []).filter(Boolean).forEach((md) => {
+        const mk = makeNameById[md.make_id];
+        const name = safeText(md.name);
+        if (!mk || !name) return;
+        if (!map[mk]) map[mk] = new Set();
+        map[mk].add(name);
+      });
+
+      const out = {};
+      Object.keys(map).forEach((mk) => {
+        out[mk] = Array.from(map[mk]).sort((a, b) => a.localeCompare(b));
+      });
+
+      setMakeModelsDb(out);
+    } catch (e) {
+      // إذا فشلت القراءة لأي سبب، ما منوقف الصفحة
+      console.warn(e);
+      setMakeModelsDb({});
+    }
+  }
+
 
 
 
@@ -970,6 +1053,7 @@ export default function Cars() {
 
   useEffect(() => {
     loadSuppliers();
+    loadMakeModels();
     loadCars();
   }, []);
 
@@ -1141,7 +1225,10 @@ export default function Cars() {
         suppliers={suppliers}
         makeModelMap={makeModelMap}
         onClose={() => setModalOpen(false)}
-        onSaved={loadCars}
+        onSaved={async () => {
+          await loadMakeModels();
+          await loadCars();
+        }}
         toast={toast}
       />
 
