@@ -29,31 +29,40 @@ import {
 } from "../utils/format";
 
 const CAR_TYPES = [
-  "Sedan",
-  "SUV",
-  "Hatchback",
-  "Coupe",
-  "Pickup",
-  "Van",
-  "Crossover",
-  "Other",
+  { value: "Sedan", label: "סדאן" },
+  { value: "SUV", label: "SUV" },
+  { value: "Hatchback", label: "האצ'בק" },
+  { value: "Coupe", label: "קופה" },
+  { value: "Pickup", label: "טנדר" },
+  { value: "Van", label: "ואן" },
+  { value: "Crossover", label: "קרוסאובר" },
+  { value: "Other", label: "אחר" },
 ];
 
+const CAR_TYPE_LABELS = Object.fromEntries(
+  CAR_TYPES.map((t) => [t.value, t.label]),
+);
+
+function typeLabel(v) {
+  const s = safeText(v);
+  return s ? CAR_TYPE_LABELS[s] || s : "";
+}
+
 const MAKE_MODEL_CATALOG = {
-  "كيا": ["بيكانتو", "ريو", "سيراتو", "سبورتاج", "نيرو", "ستونيك", "سورينتو", "كارنفال"],
-  "هيونداي": ["i10", "i20", "أكسنت", "إلنترا", "توسان", "كونا", "سانتافي", "أيونيك"],
-  "تويوتا": ["كورولا", "ياريس", "كامري", "راف 4", "CH-R", "هايلكس", "لاند كروزر"],
-  "سكودا": ["أوكتافيا", "سوبرب", "كودياك", "كاميك", "كاروك", "فابيا"],
-  "فولكس فاجن": ["جولف", "بولو", "تيغوان", "باسات", "ت-روك"],
-  "مازدا": ["3", "6", "CX-3", "CX-5", "CX-30"],
-  "نيسان": ["ميكرا", "سنترا", "قشقاي", "إكس-تريل", "جوك"],
-  "ميتسوبيشي": ["أتراج", "لانسر", "ASX", "أوتلاندر", "تريتون"],
-  "سوزوكي": ["سويفت", "بالينو", "فيتارا", "سياز", "إرتيجا"],
-  "بيجو": ["208", "2008", "3008", "508"],
-  "رينو": ["كليو", "كابتور", "ميغان", "كوليوس"],
-  "مرسيدس": ["A-Class", "C-Class", "E-Class", "GLA", "GLC"],
-  "بي إم دبليو": ["1 Series", "3 Series", "5 Series", "X1", "X3"],
-  "أودي": ["A3", "A4", "A6", "Q3", "Q5"],
+  "קיה": ["פיקנטו", "ריו", "סראטו", "ספורטאז׳", "נירו", "סטוניק", "סורנטו", "קרניבל"],
+  "יונדאי": ["i10", "i20", "אקסנט", "אלנטרה", "טוסון", "קונה", "סנטה פה", "איוניק"],
+  "טויוטה": ["קורולה", "יאריס", "קאמרי", "ראב4", "C-HR", "היילקס", "לנד קרוזר"],
+  "סקודה": ["אוקטביה", "סופרב", "קודיאק", "קאמיק", "קארוק", "פאביה"],
+  "פולקסווגן": ["גולף", "פולו", "טיגואן", "פאסאט", "T-Roc"],
+  "מאזדה": ["3", "6", "CX-3", "CX-5", "CX-30"],
+  "ניסאן": ["מיקרה", "סנטרה", "קשקאי", "אקס-טרייל", "ג'וק"],
+  "מיצובישי": ["אטראז׳", "לנסר", "ASX", "אאוטלנדר", "טרייטון"],
+  "סוזוקי": ["סוויפט", "באלנו", "ויטארה", "סיאז", "ארטיגה"],
+  "פיג׳ו": ["208", "2008", "3008", "508"],
+  "רנו": ["קליאו", "קפצ'ור", "מגאן", "קולאוס"],
+  "מרצדס": ["A-Class", "C-Class", "E-Class", "GLA", "GLC"],
+  "ב.מ.וו": ["1 Series", "3 Series", "5 Series", "X1", "X3"],
+  "אאודי": ["A3", "A4", "A6", "Q3", "Q5"],
 };
 
 
@@ -117,8 +126,8 @@ function CarCard({ row, onOpen }) {
   return (
     <button
       className="carCard"
+      type="button"
       onClick={onOpen}
-      style={{ cursor: "pointer", textAlign: "inherit", padding: 0 }}
     >
       <div className="car-card-image-wrapper">
         <img
@@ -137,7 +146,7 @@ function CarCard({ row, onOpen }) {
           <div>
             <div className="carTitle">{buildCarTitle(row) || "-"}</div>
             <div className="muted" style={{ marginTop: 4 }}>
-              {row?.type || "-"} • {row?.mileage ? `${row.mileage.toLocaleString()} كم` : "-"}
+              {typeLabel(row?.type) || "-"} • {row?.mileage ? `${row.mileage.toLocaleString()} ק\"מ` : "-"}
             </div>
           </div>
 
@@ -146,7 +155,7 @@ function CarCard({ row, onOpen }) {
 
         <div className="row space" style={{ alignItems: "center" }}>
           <div className="price ltrIso">{formatMoneyILS(row?.asking_price)}</div>
-          <div className="muted" style={{ fontWeight: 900 }}>{row?.plate_number || ""}</div>
+          <div className="muted ltrIso" style={{ fontWeight: 900 }}>{row?.plate_number || ""}</div>
         </div>
       </div>
     </button>
@@ -364,7 +373,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
       };
 
       if (!payload.make || !payload.model) {
-        throw new Error("الرجاء إدخال الشركة والموديل.");
+        throw new Error("נא למלא יצרן ודגם.");
       }
 
       let carRow;
@@ -468,7 +477,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
       } catch (e) {
         // لا نوقف حفظ السيارة إذا فشل حفظ القائمة
         console.warn(e);
-        toast?.("تم حفظ السيارة، لكن لم يتم حفظ الشركة/الموديل في قائمة الاختيار.", "warn");
+        toast?.("הרכב נשמר, אבל לא הצלחנו לשמור את היצרן/דגם ברשימת הבחירה.", "warn");
       }
 
       // 4) image upload
@@ -476,12 +485,12 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
         try {
           await uploadMainImage({ carId: carRow.id, file: imageFile });
         } catch (imgErr) {
-          toast?.("تم حفظ السيارة، لكن فشل رفع الصورة.", "warn");
+          toast?.("הרכב נשמר, אבל העלאת התמונה נכשלה.", "warn");
           console.warn(imgErr);
         }
       }
 
-      toast?.(isEdit ? "تم تحديث السيارة." : "تمت إضافة السيارة.", "ok");
+      toast?.(isEdit ? "הרכב עודכן." : "הרכב נוסף.", "ok");
       onSaved?.();
       onClose?.();
 
@@ -493,11 +502,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
   }
 
   const title =
-    mode === "view"
-      ? "تفاصيل السيارة"
-      : isEdit
-        ? "تعديل سيارة"
-        : "إضافة سيارة";
+    mode === "view" ? "פרטי רכב" : isEdit ? "עריכת רכב" : "הוספת רכב";
 
   return (
     <Modal open={open} title={title} onClose={onClose}>
@@ -509,7 +514,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
             <div>
               <div className="h1">{buildCarTitle(initial) || "-"}</div>
               <div className="muted" style={{ marginTop: 6 }}>
-                {initial?.type || "-"} • {initial?.mileage ? `${initial.mileage.toLocaleString()} كم` : "-"}
+                {typeLabel(initial?.type) || "-"} • {initial?.mileage ? `${initial.mileage.toLocaleString()} ק\"מ` : "-"}
               </div>
             </div>
             <Badge variant={statusVariant(initial?.status)}>
@@ -518,51 +523,51 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
           </div>
 
           <div className="subtleBox">
-            <div className="label">السعر المطلوب</div>
+            <div className="label">מחיר מבוקש</div>
             <div className="price ltrIso">{formatMoneyILS(initial?.asking_price)}</div>
           </div>
 
           <div className="subtleBox">
-            <KeyValue k="رقم اللوحة" v={initial?.plate_number} />
-            <KeyValue k="اللون" v={initial?.color} />
-            <KeyValue k="نوع السيارة" v={initial?.type} />
-            <KeyValue k="تاريخ نزول للشارع" v={onRoadDate} />
-            <KeyValue k="آخر فحص/ترخيص" v={lastTestDate} />
-            <KeyValue k="ساري حتى" v={testValidUntil} />
-            <KeyValue k="نوع الملكية" v={ownershipType} />
-            <KeyValue k="عدد المالكين" v={ownersCount} />
-            <KeyValue k="فئة التجهيز" v={trimLevel} />
-            <KeyValue k="نوع الوقود" v={fuelType} />
-            <KeyValue k="ناقل الحركة" v={gearbox} />
-            <KeyValue k="سعة المحرك (cc)" v={engineCc} />
-            <KeyValue k="فتحة سقف" v={sunroof === "" ? "" : (sunroof === "true" ? "نعم" : "لا")} />
+            <KeyValue k="מספר רישוי" v={initial?.plate_number} />
+            <KeyValue k="צבע" v={initial?.color} />
+            <KeyValue k="סוג רכב" v={typeLabel(initial?.type)} />
+            <KeyValue k="תאריך עלייה לכביש" v={onRoadDate} />
+            <KeyValue k="טסט אחרון" v={lastTestDate} />
+            <KeyValue k="בתוקף עד" v={testValidUntil} />
+            <KeyValue k="סוג בעלות" v={ownershipType} />
+            <KeyValue k="מס׳ בעלים" v={ownersCount} />
+            <KeyValue k="רמת גימור" v={trimLevel} />
+            <KeyValue k="סוג דלק" v={fuelType} />
+            <KeyValue k="תיבת הילוכים" v={gearbox} />
+            <KeyValue k="נפח מנוע (cc)" v={engineCc} />
+            <KeyValue k="גג נפתח" v={sunroof === "" ? "" : (sunroof === "true" ? "כן" : "לא")} />
           </div>
 
           <div className="subtleBox">
-            <div className="label">المورد</div>
+            <div className="label">ספק</div>
             <div style={{ fontWeight: 900 }}>{supplierName || "—"}</div>
           </div>
 
           {isAdmin ? (
             <div className="subtleBox">
-              <div className="label">سعر الشراء (داخلي)</div>
+              <div className="label">מחיר קנייה (פנימי)</div>
               <div className="price ltrIso">{formatMoneyILS(toNumberOrNull(purchasePrice))}</div>
             </div>
           ) : null}
 
           <div className="row" style={{ justifyContent: "flex-end" }}>
             <button className="btn" onClick={onClose}>
-              إغلاق
+              סגירה
             </button>
           </div>
         </div>
       ) : (
         <form onSubmit={onSubmit} className="stack">
           <div className="subtleBox">
-            <div className="h2" style={{ marginBottom: 10 }}>بيانات السيارة</div>
+            <div className="h2" style={{ marginBottom: 10 }}>נתוני רכב</div>
             <div className="grid">
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">الشركة</div>
+                <div className="label">יצרן</div>
 
                 {!makeIsCustom ? (
                   <select
@@ -597,7 +602,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                           {mk}
                         </option>
                       ))}
-                    <option value="__other__">أخرى...</option>
+                    <option value="__other__">אחר...</option>
                   </select>
                 ) : (
                   <div className="row" style={{ gap: 8 }}>
@@ -608,7 +613,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                         setMake(e.target.value);
                         setModel("");
                       }}
-                      placeholder="اكتب الشركة"
+                      placeholder="הקלד יצרן"
                       required
                     />
                     <button
@@ -621,14 +626,14 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                         setModelIsCustom(false);
                       }}
                     >
-                      قائمة
+                      רשימה
                     </button>
                   </div>
                 )}
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">الموديل</div>
+                <div className="label">דגם</div>
 
                 {!modelIsCustom ? (
                   <select
@@ -661,7 +666,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                           {md}
                         </option>
                       ))}
-                    <option value="__other__">أخرى...</option>
+                    <option value="__other__">אחר...</option>
                   </select>
                 ) : (
                   <div className="row" style={{ gap: 8 }}>
@@ -669,7 +674,7 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                       className="input"
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
-                      placeholder="اكتب الموديل"
+                      placeholder="הקלד דגם"
                       required
                       disabled={!make && !makeIsCustom}
                     />
@@ -682,92 +687,92 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                       }}
                       disabled={!make}
                     >
-                      قائمة
+                      רשימה
                     </button>
                   </div>
                 )}
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">السنة</div>
+                <div className="label">שנה</div>
                 <input className="input ltrIso" value={year} onChange={(e) => setYear(e.target.value)} inputMode="numeric" />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">الممشى (كم)</div>
+                <div className="label">קילומטראז׳ (ק\"מ)</div>
                 <input className="input ltrIso" value={mileage} onChange={(e) => setMileage(e.target.value)} inputMode="numeric" />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">رقم اللوحة</div>
+                <div className="label">מספר רישוי</div>
                 <input className="input ltrIso" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">اللون</div>
+                <div className="label">צבע</div>
                 <input className="input" value={color} onChange={(e) => setColor(e.target.value)} />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">نوع السيارة</div>
+                <div className="label">סוג רכב</div>
                 <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
                   <option value="">—</option>
                   {CAR_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">الحالة</div>
+                <div className="label">סטטוס</div>
                 <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-                  <option value="available">متاح</option>
-                  <option value="reserved">محجوز</option>
-                  <option value="sold">مباع</option>
+                  <option value="available">זמין</option>
+                  <option value="reserved">שמור</option>
+                  <option value="sold">נמכר</option>
                 </select>
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">السعر المطلوب (₪)</div>
+                <div className="label">מחיר מבוקש (₪)</div>
                 <input className="input ltrIso" value={askingPrice} onChange={(e) => setAskingPrice(e.target.value)} inputMode="numeric" required />
               </div>
             </div>
           </div>
 
           <div className="subtleBox">
-            <div className="h2" style={{ marginBottom: 10 }}>الرخصة والفحص</div>
+            <div className="h2" style={{ marginBottom: 10 }}>רישוי וטסט</div>
 
             {!detailsLoaded && initial?.id ? (
-              <div className="muted">جاري التحميل…</div>
+              <div className="muted">טוען…</div>
             ) : (
               <div className="grid">
                 <div style={{ gridColumn: "span 4" }}>
-                  <div className="label">تاريخ نزول للشارع</div>
+                  <div className="label">תאריך עלייה לכביש</div>
                   <input className="input ltrIso" value={onRoadDate} onChange={(e) => setOnRoadDate(e.target.value)} placeholder="YYYY-MM-DD" />
                 </div>
 
                 <div style={{ gridColumn: "span 4" }}>
-                  <div className="label">آخر فحص/ترخيص</div>
+                  <div className="label">טסט אחרון</div>
                   <input className="input ltrIso" value={lastTestDate} onChange={(e) => setLastTestDate(e.target.value)} placeholder="YYYY-MM-DD" />
                 </div>
 
                 <div style={{ gridColumn: "span 4" }}>
-                  <div className="label">ساري حتى</div>
+                  <div className="label">בתוקף עד</div>
                   <input className="input ltrIso" value={testValidUntil} onChange={(e) => setTestValidUntil(e.target.value)} placeholder="YYYY-MM-DD" />
                 </div>
 
                 <div style={{ gridColumn: "span 6" }}>
-                  <div className="label">نوع الملكية</div>
+                  <div className="label">סוג בעלות</div>
                   <input className="input" value={ownershipType} onChange={(e) => setOwnershipType(e.target.value)} />
                 </div>
 
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">عدد المالكين</div>
+                  <div className="label">מס׳ בעלים</div>
                   <input className="input ltrIso" value={ownersCount} onChange={(e) => setOwnersCount(e.target.value)} inputMode="numeric" />
                 </div>
 
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">فئة التجهيز</div>
+                  <div className="label">רמת גימור</div>
                   <input className="input" value={trimLevel} onChange={(e) => setTrimLevel(e.target.value)} />
                 </div>
               </div>
@@ -775,30 +780,30 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
           </div>
 
           <div className="subtleBox">
-            <div className="h2" style={{ marginBottom: 10 }}>مواصفات</div>
+            <div className="h2" style={{ marginBottom: 10 }}>מפרט</div>
 
             <div className="grid">
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">نوع الوقود</div>
+                <div className="label">סוג דלק</div>
                 <input className="input" value={fuelType} onChange={(e) => setFuelType(e.target.value)} />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">ناقل الحركة</div>
+                <div className="label">תיבת הילוכים</div>
                 <input className="input" value={gearbox} onChange={(e) => setGearbox(e.target.value)} />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">سعة المحرك (cc)</div>
+                <div className="label">נפח מנוע (cc)</div>
                 <input className="input ltrIso" value={engineCc} onChange={(e) => setEngineCc(e.target.value)} inputMode="numeric" />
               </div>
 
               <div style={{ gridColumn: "span 4" }}>
-                <div className="label">فتحة سقف</div>
+                <div className="label">גג נפתח</div>
                 <select className="input" value={sunroof} onChange={(e) => setSunroof(e.target.value)}>
                   <option value="">—</option>
-                  <option value="true">نعم</option>
-                  <option value="false">لا</option>
+                  <option value="true">כן</option>
+                  <option value="false">לא</option>
                 </select>
               </div>
             </div>
@@ -806,13 +811,13 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
 
           <div className="subtleBox">
             <div className="row space" style={{ marginBottom: 8 }}>
-              <div className="h2">صورة السيارة</div>
-              <div className="muted">اختياري</div>
+              <div className="h2">תמונת רכב</div>
+              <div className="muted">אופציונלי</div>
             </div>
 
             <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
               <label className="btn" style={{ cursor: "pointer" }}>
-                <ImagePlus size={18} /> اختيار صورة
+                <ImagePlus size={18} /> בחירת תמונה
                 <input
                   type="file"
                   accept="image/*"
@@ -821,23 +826,23 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                 />
               </label>
               <div className="muted" style={{ fontWeight: 900 }}>
-                {imageFile ? imageFile.name : "لم يتم اختيار ملف"}
+                {imageFile ? imageFile.name : "לא נבחר קובץ"}
               </div>
             </div>
           </div>
 
           <div className="subtleBox">
             <div className="row space" style={{ marginBottom: 8 }}>
-              <div className="h2">تكاليف داخلية (للأدمن فقط)</div>
-              <div className="pill warn">مخفي عن المبيعات</div>
+              <div className="h2">עלויות פנימיות (מנהלים בלבד)</div>
+              <div className="pill warn">מוסתר מהמכירות</div>
             </div>
 
             {!financeLoaded && initial?.id ? (
-              <div className="muted">جاري التحميل…</div>
+              <div className="muted">טוען…</div>
             ) : (
               <div className="grid">
                 <div style={{ gridColumn: "span 6" }}>
-                  <div className="label">المورد</div>
+                  <div className="label">ספק</div>
                   <select className="input" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                     <option value="">—</option>
                     {(suppliers || []).map((s) => (
@@ -849,32 +854,32 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
                 </div>
 
                 <div style={{ gridColumn: "span 6" }}>
-                  <div className="label">تاريخ الشراء</div>
+                  <div className="label">תאריך רכישה</div>
                   <input className="input ltrIso" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} placeholder="YYYY-MM-DD" />
                 </div>
 
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">سعر الشراء (سعر السيارة الأصلي)</div>
+                  <div className="label">מחיר קנייה (מחיר הרכב המקורי)</div>
                   <input className="input ltrIso" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} inputMode="numeric" />
                 </div>
 
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">إعلانات</div>
+                  <div className="label">פרסום</div>
                   <input className="input ltrIso" value={adSpend} onChange={(e) => setAdSpend(e.target.value)} inputMode="numeric" />
                 </div>
 
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">بنزين</div>
+                  <div className="label">דלק</div>
                   <input className="input ltrIso" value={fuelCost} onChange={(e) => setFuelCost(e.target.value)} inputMode="numeric" />
                 </div>
 
                 <div style={{ gridColumn: "span 3" }}>
-                  <div className="label">مصاريف أخرى</div>
+                  <div className="label">הוצאות נוספות</div>
                   <input className="input ltrIso" value={otherCost} onChange={(e) => setOtherCost(e.target.value)} inputMode="numeric" />
                 </div>
 
                 <div style={{ gridColumn: "span 12" }}>
-                  <div className="label">ملاحظات داخلية</div>
+                  <div className="label">הערות פנימיות</div>
                   <textarea className="input" rows={2} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
                 </div>
               </div>
@@ -883,10 +888,10 @@ function CarModal({ open, mode, isAdmin, initial, suppliers, makeModelMap, onClo
 
           <div className="row" style={{ justifyContent: "flex-end", flexWrap: "wrap", gap: 10 }}>
             <button type="button" className="btn" onClick={onClose}>
-              إلغاء
+              ביטול
             </button>
             <button className="btn primary" disabled={saving}>
-              <BadgeCheck size={18} /> {saving ? "..." : "حفظ"}
+              <BadgeCheck size={18} /> {saving ? "..." : "שמירה"}
             </button>
           </div>
         </form>
@@ -1077,11 +1082,11 @@ export default function Cars() {
       const { error: delErr } = await supabase.from("cars").delete().eq("id", row.id);
       if (delErr) throw delErr;
 
-      toast?.("تم حذف السيارة.", "ok");
+      toast?.("הרכב נמחק.", "ok");
       setConfirmDel({ open: false, row: null });
       await loadCars();
     } catch (e) {
-      toast?.("فشل حذف السيارة.", "danger");
+      toast?.("מחיקת הרכב נכשלה.", "danger");
       console.warn(e);
     }
   }
@@ -1089,12 +1094,12 @@ export default function Cars() {
   return (
     <div className="container">
       <PageHeader
-        title="السيارات"
-        subtitle={isAdmin ? "إدارة السيارات" : "عرض السيارات"}
+        title="מכוניות"
+        subtitle={isAdmin ? "ניהול מכוניות" : "תצוגת מכוניות"}
         actions={
           isAdmin ? (
             <button className="btn primary" onClick={openCreate}>
-              <Plus size={18} /> إضافة سيارة
+              <Plus size={18} /> הוספת רכב
             </button>
           ) : null
         }
@@ -1106,10 +1111,10 @@ export default function Cars() {
         <div className="row space" style={{ marginBottom: 10 }}>
           <div className="row" style={{ gap: 10 }}>
             <Filter size={18} />
-            <div className="h2">فلاتر</div>
+            <div className="h2">מסננים</div>
           </div>
           <button className="btn" onClick={loadCars}>
-            تحديث
+            רענון
           </button>
         </div>
 
@@ -1118,36 +1123,36 @@ export default function Cars() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="بحث"
+              placeholder="חיפוש"
             />
           </Control>
 
           <select className="input" value={make} onChange={(e) => setMake(e.target.value)}>
-            <option value="">كل الشركات</option>
+            <option value="">כל היצרנים</option>
             {makeOptions.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
 
           <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
-            <option value="">كل الأنواع</option>
+            <option value="">כל הסוגים</option>
             {CAR_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
+              <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
 
           <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">كل الحالات</option>
-            <option value="available">متاح</option>
-            <option value="reserved">محجوز</option>
-            <option value="sold">مباع</option>
+            <option value="">כל הסטטוסים</option>
+            <option value="available">זמין</option>
+            <option value="reserved">שמור</option>
+            <option value="sold">נמכר</option>
           </select>
 
           <input
             className="input ltrIso"
             value={minPrice}
             onChange={(e) => setMinPrice(e.target.value)}
-            placeholder="سعر من"
+            placeholder="מחיר מ-"
             inputMode="numeric"
             style={{ maxWidth: 150 }}
           />
@@ -1155,25 +1160,25 @@ export default function Cars() {
             className="input ltrIso"
             value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value)}
-            placeholder="سعر إلى"
+            placeholder="עד"
             inputMode="numeric"
             style={{ maxWidth: 150 }}
           />
 
           <button className="btn gold" onClick={loadCars}>
-            <CarIcon size={18} /> تطبيق
+            <CarIcon size={18} /> החל
           </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="card">جاري التحميل…</div>
+        <div className="card">טוען…</div>
       ) : rows.length === 0 ? (
         <EmptyState
           icon={CarIcon}
-          title="لا يوجد سيارات"
-          description={isAdmin ? "أضف أول سيارة." : "لا يوجد سيارات للعرض."}
-          actionLabel={isAdmin ? "إضافة سيارة" : undefined}
+          title="אין רכבים"
+          description={isAdmin ? "הוסף את הרכב הראשון." : "אין רכבים להצגה."}
+          actionLabel={isAdmin ? "הוספת רכב" : undefined}
           onAction={isAdmin ? openCreate : undefined}
         />
       ) : (
@@ -1183,10 +1188,10 @@ export default function Cars() {
               <CarCard row={row} onOpen={() => openRow(row)} />
 
               {isAdmin ? (
-                <div style={{ position: "absolute", top: 10, left: 10, display: "flex", gap: 8 }}>
+                <div className="carCardActions">
                   <button
                     className="btn"
-                    title="تعديل"
+                    title="עריכה"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -1194,19 +1199,17 @@ export default function Cars() {
                       setModalMode("edit");
                       setModalOpen(true);
                     }}
-                    style={{ padding: "8px 10px" }}
                   >
                     <Pencil size={16} />
                   </button>
                   <button
                     className="btn danger"
-                    title="حذف"
+                    title="מחיקה"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       setConfirmDel({ open: true, row });
                     }}
-                    style={{ padding: "8px 10px" }}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -1234,10 +1237,10 @@ export default function Cars() {
 
       <ConfirmDialog
         open={confirmDel.open}
-        title="حذف سيارة"
-        message="هل أنت متأكد؟"
-        confirmText="حذف"
-        cancelText="إلغاء"
+        title="מחיקת רכב"
+        message="בטוח למחוק?"
+        confirmText="מחיקה"
+        cancelText="ביטול"
         danger
         onCancel={() => setConfirmDel({ open: false, row: null })}
         onConfirm={onDeleteConfirmed}
