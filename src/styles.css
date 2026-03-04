@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap");
 
 :root{
   /* Brand (من اللوجو) */
@@ -43,7 +43,7 @@
 html,body{height:100%}
 body{
   margin:0;
-  font-family: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family: "Heebo", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   color:var(--text);
   background:
     radial-gradient(1100px 560px at 20% 0%, rgba(0,172,71,.08), transparent 64%),
@@ -339,11 +339,22 @@ textarea{resize:vertical}
 /* ============================ Cards: Cars ============================ */
 .carsGrid{
   display:grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap:14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap:16px;
+  max-width: 1020px;
+  margin: 0 auto;
+}
+
+@media (max-width: 1020px){
+  .carsGrid{grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 720px;}
+}
+
+@media (max-width: 680px){
+  .carsGrid{grid-template-columns: 1fr; max-width: 420px;}
 }
 
 .carCard{
+  appearance:none;
   background:var(--surface);
   border:1px solid var(--border);
   border-radius:var(--r-lg);
@@ -351,26 +362,58 @@ textarea{resize:vertical}
   box-shadow:var(--shadow-sm);
   display:flex;
   flex-direction:column;
+  width:100%;
+  padding:0;
+  cursor:pointer;
+  text-align:inherit;
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.carCard:hover{
+  transform:translateY(-2px);
+  box-shadow:var(--shadow-soft);
+  border-color:rgba(0,0,0,.14);
+}
+
+.carCard:focus-visible{
+  outline:none;
+  border-color:rgba(0,172,71,.35);
+  box-shadow:var(--ring), var(--shadow-soft);
 }
 
 .car-card-image-wrapper{
   width:100%;
-  max-width: 280px;
+  aspect-ratio: 16 / 10;
   max-height: 220px;
-  margin: 0 auto;
   background:linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.00));
   display:grid;
   place-items:center;
+  overflow:hidden;
+  border-bottom:1px solid rgba(0,0,0,.06);
 }
 
 .carCardImg{
   width:100%;
-  height:220px;
+  height:100%;
   object-fit:cover;
   display:block;
+  transition:transform .28s ease;
 }
 
+.carCard:hover .carCardImg{transform:scale(1.03)}
+
 .carCardBody{padding:14px; display:flex; flex-direction:column; gap:10px;}
+
+.carCardActions{
+  position:absolute;
+  top:10px;
+  inset-inline-start:10px;
+  display:flex;
+  gap:8px;
+  z-index:2;
+}
+
+.carCardActions .btn{padding:8px 10px}
 
 .carTitle{font-weight:950; font-size:16px; line-height:1.25}
 .carMeta{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
