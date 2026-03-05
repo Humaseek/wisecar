@@ -24,9 +24,9 @@ export function toNumberOrNull(v) {
 
 export function statusLabel(status) {
   const s = String(status || "").toLowerCase();
-  if (s === "available") return "متاح";
-  if (s === "reserved") return "محجوز";
-  if (s === "sold") return "مباع";
+  if (s === "available") return "זמין";
+  if (s === "reserved") return "שמור";
+  if (s === "sold") return "נמכר";
   return "-";
 }
 
