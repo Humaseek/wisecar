@@ -3,9 +3,9 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./styles.css";
 
-// تثبيت RTL / Arabic
+// Hebrew + RTL
 if (typeof document !== "undefined") {
-  document.documentElement.lang = "ar";
+  document.documentElement.lang = "he";
   document.documentElement.dir = "rtl";
 }
 
