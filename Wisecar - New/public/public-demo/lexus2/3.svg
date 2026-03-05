@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e5e7eb"/>
+      <stop offset="1" stop-color="#f3f4f6"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#g)"/>
+  <g fill="#111827" opacity="0.85" font-family="Arial, sans-serif">
+    <text x="60" y="120" font-size="54" font-weight="700">Wisecar</text>
+    <text x="60" y="185" font-size="26">Demo photo placeholder</text>
+  </g>
+  <g transform="translate(60 260)" fill="#9ca3af">
+    <rect x="0" y="0" width="1080" height="420" rx="24" fill="#ffffff"/>
+    <path d="M210 260c45-55 110-80 200-80h260c90 0 155 25 200 80l50 70c10 15-1 35-19 35H150c-18 0-29-20-19-35l78-70z" fill="#e5e7eb"/>
+    <circle cx="320" cy="385" r="52" fill="#d1d5db"/>
+    <circle cx="860" cy="385" r="52" fill="#d1d5db"/>
+    <rect x="390" y="210" width="420" height="70" rx="14" fill="#e5e7eb"/>
+  </g>
+</svg>
