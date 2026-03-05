@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Phone, Whatsapp, ChevronRight } from "lucide-react";
+import { Phone, MessageCircle, ChevronRight } from "lucide-react";
 import PublicHeader from "../components/PublicHeader";
 import Gallery from "../components/Gallery";
 import { loadPublicCars } from "../utils/publicCars";
@@ -32,12 +32,18 @@ export default function PublicCarDetails() {
     loadPublicCars().then(setCars);
   }, []);
 
-  const car = useMemo(() => cars.find((c) => String(c.id) === String(id)), [cars, id]);
+  const car = useMemo(
+    () => cars.find((c) => String(c.id) === String(id)),
+    [cars, id],
+  );
 
   if (!car) {
     return (
       <div className="public-app" dir="rtl">
-        <PublicHeader searchValue={searchValue} onSearchChange={setSearchValue} />
+        <PublicHeader
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+        />
         <main className="public-main public-details">
           <div className="public-container">
             <div className="public-breadcrumbs">
@@ -85,7 +91,7 @@ export default function PublicCarDetails() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Whatsapp size={18} />
+                  <MessageCircle size={18} />
                   واتساب
                 </a>
 
@@ -95,7 +101,9 @@ export default function PublicCarDetails() {
                   onClick={() => setShowPhone((v) => !v)}
                 >
                   <Phone size={18} />
-                  {showPhone ? "05x xxx xxxx" : car.phoneMasked || "إظهار الرقم"}
+                  {showPhone
+                    ? "05x xxx xxxx"
+                    : car.phoneMasked || "إظهار الرقم"}
                 </button>
 
                 <div className="public-specs">
@@ -118,7 +126,10 @@ export default function PublicCarDetails() {
                   <button type="button" className="public-chip">
                     ترويج
                   </button>
-                  <button type="button" className="public-chip public-chip--ghost">
+                  <button
+                    type="button"
+                    className="public-chip public-chip--ghost"
+                  >
                     كاملة المواصفات
                   </button>
                 </div>
@@ -129,7 +140,9 @@ export default function PublicCarDetails() {
                   <div className="public-seller__top">
                     <div className="public-seller__badge" aria-hidden="true" />
                     <div>
-                      <div className="public-seller__name">{car.ownerAr || "مالك"}</div>
+                      <div className="public-seller__name">
+                        {car.ownerAr || "مالك"}
+                      </div>
                       <div className="public-seller__loc">{car.locationAr}</div>
                     </div>
                   </div>
