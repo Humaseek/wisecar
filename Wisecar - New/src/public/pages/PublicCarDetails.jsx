@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Phone, Whatsapp, ChevronRight } from "lucide-react";
+import { Phone, MessageCircle, ChevronRight } from "lucide-react";
 import PublicHeader from "../components/PublicHeader";
 import Gallery from "../components/Gallery";
 import { loadPublicCars } from "../utils/publicCars";
@@ -17,7 +17,7 @@ function SpecRow({ label, value }) {
   return (
     <div className="public-specs__row">
       <div className="public-specs__label">{label}</div>
-      <div className="public-specs__value">{value ?? "—"}</div>
+      <div className="public-specs__value">{value ?? "â€”"}</div>
     </div>
   );
 }
@@ -41,12 +41,12 @@ export default function PublicCarDetails() {
         <main className="public-main public-details">
           <div className="public-container">
             <div className="public-breadcrumbs">
-              <Link to="/">الرئيسية</Link>
+              <Link to="/">Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©</Link>
               <ChevronRight size={14} />
-              <span>الإعلان</span>
+              <span>Ø§Ù„Ø¥Ø¹Ù„Ø§Ù†</span>
             </div>
             <div className="public-card" style={{ padding: 18 }}>
-              الإعلان غير موجود.
+              Ø§Ù„Ø¥Ø¹Ù„Ø§Ù† ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯.
             </div>
           </div>
         </main>
@@ -61,7 +61,7 @@ export default function PublicCarDetails() {
       <main className="public-main public-details">
         <div className="public-container">
           <div className="public-breadcrumbs">
-            <Link to="/">الرئيسية</Link>
+            <Link to="/">Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©</Link>
             <ChevronRight size={14} />
             <span>
               {car.make} {car.model}
@@ -76,7 +76,7 @@ export default function PublicCarDetails() {
             <aside className="public-details__side">
               <div className="public-price-card">
                 <div className="public-price-card__price">
-                  {formatPriceAed(car.priceAed)} <span>د.إ</span>
+                  {formatPriceAed(car.priceAed)} <span>Ø¯.Ø¥</span>
                 </div>
 
                 <a
@@ -85,8 +85,8 @@ export default function PublicCarDetails() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <Whatsapp size={18} />
-                  واتساب
+                  <MessageCircle size={18} />
+                  ÙˆØ§ØªØ³Ø§Ø¨
                 </a>
 
                 <button
@@ -95,31 +95,31 @@ export default function PublicCarDetails() {
                   onClick={() => setShowPhone((v) => !v)}
                 >
                   <Phone size={18} />
-                  {showPhone ? "05x xxx xxxx" : car.phoneMasked || "إظهار الرقم"}
+                  {showPhone ? "05x xxx xxxx" : car.phoneMasked || "Ø¥Ø¸Ù‡Ø§Ø± Ø§Ù„Ø±Ù‚Ù…"}
                 </button>
 
                 <div className="public-specs">
-                  <SpecRow label="السنة" value={car.year} />
-                  <SpecRow label="المصنع" value={car.make} />
-                  <SpecRow label="الموديل" value={car.model} />
+                  <SpecRow label="Ø§Ù„Ø³Ù†Ø©" value={car.year} />
+                  <SpecRow label="Ø§Ù„Ù…ØµÙ†Ø¹" value={car.make} />
+                  <SpecRow label="Ø§Ù„Ù…ÙˆØ¯ÙŠÙ„" value={car.model} />
                   <SpecRow
-                    label="الكيلومترات"
-                    value={car.km ? `${formatPriceAed(car.km)}` : "—"}
+                    label="Ø§Ù„ÙƒÙŠÙ„ÙˆÙ…ØªØ±Ø§Øª"
+                    value={car.km ? `${formatPriceAed(car.km)}` : "â€”"}
                   />
-                  <SpecRow label="الأسطوانات" value={car.cylinders} />
-                  <SpecRow label="ناقل الحركة" value={car.transmissionAr} />
-                  <SpecRow label="النوع" value={car.driveAr} />
-                  <SpecRow label="الأبواب" value={car.doors} />
-                  <SpecRow label="اللون" value={car.colorAr} />
-                  <SpecRow label="الوقود" value={car.fuelAr} />
+                  <SpecRow label="Ø§Ù„Ø£Ø³Ø·ÙˆØ§Ù†Ø§Øª" value={car.cylinders} />
+                  <SpecRow label="Ù†Ø§Ù‚Ù„ Ø§Ù„Ø­Ø±ÙƒØ©" value={car.transmissionAr} />
+                  <SpecRow label="Ø§Ù„Ù†ÙˆØ¹" value={car.driveAr} />
+                  <SpecRow label="Ø§Ù„Ø£Ø¨ÙˆØ§Ø¨" value={car.doors} />
+                  <SpecRow label="Ø§Ù„Ù„ÙˆÙ†" value={car.colorAr} />
+                  <SpecRow label="Ø§Ù„ÙˆÙ‚ÙˆØ¯" value={car.fuelAr} />
                 </div>
 
                 <div className="public-price-card__actions">
                   <button type="button" className="public-chip">
-                    ترويج
+                    ØªØ±ÙˆÙŠØ¬
                   </button>
                   <button type="button" className="public-chip public-chip--ghost">
-                    كاملة المواصفات
+                    ÙƒØ§Ù…Ù„Ø© Ø§Ù„Ù…ÙˆØ§ØµÙØ§Øª
                   </button>
                 </div>
               </div>
@@ -129,7 +129,7 @@ export default function PublicCarDetails() {
                   <div className="public-seller__top">
                     <div className="public-seller__badge" aria-hidden="true" />
                     <div>
-                      <div className="public-seller__name">{car.ownerAr || "مالك"}</div>
+                      <div className="public-seller__name">{car.ownerAr || "Ù…Ø§Ù„Ùƒ"}</div>
                       <div className="public-seller__loc">{car.locationAr}</div>
                     </div>
                   </div>
